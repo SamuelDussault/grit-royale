@@ -46,6 +46,12 @@ export function hex(h: string): RGB {
 export function mul(c: RGB, f: number): RGB {
   return c.map((v) => Math.max(0, Math.min(255, Math.round(v * f)))) as RGB
 }
+export function shadeOf(c: RGB): RGB {
+  return mix(mul(c, 0.74), [70, 40, 110], 0.14)
+}
+export function lightOf(c: RGB): RGB {
+  return mix(c, [255, 252, 240], 0.32)
+}
 export function mix(a: RGB, b: RGB, t: number): RGB {
   return a.map((v, i) => Math.round(v + (b[i] - v) * t)) as RGB
 }
@@ -112,6 +118,13 @@ const FONT: Record<string, string[]> = {
 export class Painter {
   col: (RGB | null)[] = Array(PW * PH).fill(null)
   z = new Int8Array(PW * PH).fill(-1)
+  /** Identifiant de la forme qui a peint chaque pixel (pour l'ombrage en relief). */
+  rid = new Int32Array(PW * PH).fill(-1)
+  private cur = 0
+  /** Nouvelle forme : les pixels suivants appartiennent à une nouvelle région. */
+  shape() {
+    this.cur++
+  }
   ox = OX
   oy = OY
   hasJester = false
@@ -122,6 +135,7 @@ export class Painter {
     if (x < 0 || y < 0 || x >= PW || y >= PH) return
     this.col[y * PW + x] = c
     this.z[y * PW + x] = z
+    this.rid[y * PW + x] = this.cur
   }
   getZ(x: number, y: number) {
     if (x < 0 || y < 0 || x >= PW || y >= PH) return -1
@@ -141,9 +155,9 @@ export class Painter {
   tone(base: RGB, v: number, x: number, y: number): RGB {
     void x
     void y
-    if (v > 0.62) return mix(base, C.pure, 0.3)
-    if (v > -0.3) return base
-    return mix(mul(base, 0.72), [60, 40, 90], 0.12)
+    if (v > 0.78) return mix(base, C.pure, 0.22)
+    if (v > -0.5) return base
+    return shadeOf(base)
   }
 
   // ---------- fonds ----------
@@ -174,6 +188,7 @@ export class Painter {
 
   // ---------- formes ----------
   ell(cx: number, cy: number, rx: number, ry: number, c: RGB, z: number = Z.mid, flat = false) {
+    this.shape()
     for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
       for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
         const nx = (x - cx) / rx
@@ -183,6 +198,7 @@ export class Painter {
       }
   }
   rect(x0: number, y0: number, w: number, h: number, c: RGB, z: number = Z.mid, flat = false) {
+    this.shape()
     for (let y = y0; y < y0 + h; y++)
       for (let x = x0; x < x0 + w; x++) {
         const nx = (x - x0 - w / 2) / Math.max(1, w / 2)
@@ -191,6 +207,7 @@ export class Painter {
       }
   }
   poly(pts: [number, number][], c: RGB, z: number = Z.mid, flat = false) {
+    this.shape()
     const xs = pts.map((p) => p[0])
     const ys = pts.map((p) => p[1])
     const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]
@@ -210,6 +227,7 @@ export class Painter {
       }
   }
   line(x0: number, y0: number, x1: number, y1: number, c: RGB, z: number = Z.detail, w = 1) {
+    this.shape()
     const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1)
     for (let i = 0; i <= n; i++) {
       const x = x0 + ((x1 - x0) * i) / n
@@ -219,6 +237,7 @@ export class Painter {
   }
   /** Tube courbé (Bézier quadratique), du rayon r0 au rayon r1. */
   bez(p0: [number, number], p1: [number, number], p2: [number, number], r0: number, r1: number, c: RGB, z: number = Z.mid) {
+    this.shape()
     for (let t = 0; t <= 1; t += 0.008) {
       const x = (1 - t) * (1 - t) * p0[0] + 2 * (1 - t) * t * p1[0] + t * t * p2[0]
       const y = (1 - t) * (1 - t) * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1]
@@ -231,6 +250,7 @@ export class Painter {
     }
   }
   bitmap(rows: string[], pal: Record<string, RGB>, x0: number, y0: number, z: number = Z.mid, s = 1) {
+    this.shape()
     rows.forEach((row, ry) =>
       row.split('').forEach((ch, rx) => {
         const c = pal[ch]
@@ -240,6 +260,7 @@ export class Painter {
     )
   }
   suit(s: 'H' | 'D' | 'S' | 'C', cx: number, cy: number, scale = 1, c?: RGB, z: number = Z.front) {
+    this.shape()
     const col = c ?? (s === 'H' || s === 'D' ? C.suitRed : C.suitDark)
     const size = 7 * scale
     const x0 = Math.round(cx - size / 2)
@@ -305,8 +326,29 @@ export class Painter {
     }
   }
 
+  /** Relief : liseré clair en haut à gauche de chaque forme, ombre en bas à droite. */
+  bevel() {
+    const out = [...this.col]
+    const same = (i: number, x: number, y: number) =>
+      x >= 0 && y >= 0 && x < PW && y < PH && this.rid[y * PW + x] === this.rid[i] && this.z[y * PW + x] === this.z[i]
+    for (let y = 0; y < PH; y++)
+      for (let x = 0; x < PW; x++) {
+        const i = y * PW + x
+        const c = this.col[i]
+        if (!c || this.z[i] <= Z.bg || this.z[i] === Z.detail) continue
+        const br = !same(i, x + 1, y) || !same(i, x, y + 1) || !same(i, x + 1, y + 1)
+        const br2 = !same(i, x + 2, y) || !same(i, x, y + 2)
+        const tl = !same(i, x - 1, y) || !same(i, x, y - 1)
+        if (br) out[i] = shadeOf(shadeOf(c).map((v, k) => Math.round((v + c[k]) / 2)) as RGB)
+        else if (br2) out[i] = shadeOf(c)
+        else if (tl) out[i] = lightOf(c)
+      }
+    this.col = out
+  }
+
   /** Contours extérieurs + traits entre les parties. */
   outline() {
+    this.bevel()
     const out = [...this.col]
     for (let y = 0; y < PH; y++)
       for (let x = 0; x < PW; x++) {

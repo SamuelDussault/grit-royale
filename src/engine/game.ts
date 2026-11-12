@@ -42,11 +42,11 @@ export function isBossRound(round: number): boolean {
 /** Score à battre et récompense (calibrés sur les scores moyens de chaque round). */
 export function bossFor(round: number): Boss {
   const table: [number, number][] = [
-    [1, 850],
-    [5, 3000],
-    [10, 17000],
-    [15, 50000],
-    [20, 130000],
+    [1, 120],
+    [5, 1000],
+    [10, 7000],
+    [15, 25000],
+    [20, 65000],
   ]
   let target: number
   const last = table[table.length - 1]
@@ -58,6 +58,7 @@ export function bossFor(round: number): Boss {
     const [r1, t1] = table[i + 1]
     target = t0 * Math.pow(t1 / t0, (round - r0) / (r1 - r0))
   }
+  // le premier se gagne presque à coup sûr ; les suivants punissent seulement un jeu bâclé
   const idx = round === 1 ? 0 : Math.floor(round / 5)
   return {
     name: BOSS_NAMES[idx % BOSS_NAMES.length],
@@ -506,11 +507,10 @@ function resolveRound(gs: GameState) {
     for (const p of alivePlayers(gs)) {
       const score = gs.combats[p.id]?.score ?? 0
       const won = score >= boss.target
-      const crush = score >= boss.target * 2
-      const reward = won ? boss.reward + (crush ? Math.ceil(boss.reward / 2) : 0) : 0
+      const reward = won ? boss.reward : 0
       bossInfo.results[p.id] = { score, won, reward }
       results.set(p.id, won)
-      if (won) addExtra(p.id, crush ? `${boss.name} écrasé !` : `${boss.name} vaincu`, reward)
+      if (won) addExtra(p.id, `${boss.name} vaincu`, reward)
       msg(p.id, won ? `Mini-boss vaincu : +${reward} $` : `Mini-boss raté (${score} / ${boss.target})`)
     }
   }

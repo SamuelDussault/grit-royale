@@ -404,3 +404,24 @@ button, input { font-family: var(--font); }
 .lock-btn:hover { opacity: 1; }
 .lock-btn.on { opacity: 1; background: #b8860b; }
 .shop-item.locked .gcard-face { outline: 3px solid #f2b632; outline-offset: 2px; border-radius: 7px; }
+
+/* mini-boss */
+.blind.boss .blind-head { background: linear-gradient(90deg, #6a0dad, #b5179e); }
+.boss-avatar { background: #2a1433; color: #f1c6ff; }
+.match.boss-row { grid-template-columns: 1fr 160px 1fr; }
+/* malédictions : choix de la cible */
+.targets { display: flex; flex-direction: column; gap: 6px; }
+.target-row { display: grid; grid-template-columns: 30px 1fr 70px 60px 90px; gap: 10px; align-items: center; background: var(--inner); border: 2px solid var(--line); border-radius: 8px; padding: 6px 12px; color: #fff; font-size: 22px; cursor: pointer; text-align: left; }
+.target-row:hover { border-color: #b5179e; background: #3a1d47; }
+/* carrousel */
+.carousel { padding: 16px 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(1050px, 100%); margin: 0 auto; animation: slideUp 0.4s ease-out; }
+.carousel-title { font-size: 42px; }
+.carousel-turn { font-size: 30px; padding: 2px 16px; border-radius: 10px; background: var(--inner); }
+.carousel-turn.mine { background: var(--green); animation: pulse 0.8s infinite; }
+.carousel-items { display: flex; flex-wrap: wrap; gap: 16px; justify-content: center; padding-top: 6px; }
+.taken-by { font-size: 18px; color: var(--muted); }
+.carousel-order { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.order-chip { background: var(--inner); border-radius: 7px; padding: 1px 8px; font-size: 18px; }
+.order-chip.now { outline: 2px solid var(--gold); }
+.order-chip.done { opacity: 0.45; }
+.order-chip.me { color: #8fd0ff; }

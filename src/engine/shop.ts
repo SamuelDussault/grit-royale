@@ -5,6 +5,7 @@ import {
   addJoker,
   applyConsumable,
   consumablePrice,
+  CURSE_LIST,
   getConsumable,
   giveConsumable,
   jokerRoom,
@@ -145,6 +146,7 @@ function rollShopCard(p: Player, rng: Rng): ShopItem {
     { item: 'tarot', w: tarotW },
     { item: 'planet', w: planetW },
     { item: 'spectral', w: 2 },
+    { item: 'curse', w: 6 },
   ])
   if (kind === 'joker') {
     const id = randomJokerId(rng, undefined, p.jokers.map((j) => j.defId))
@@ -152,7 +154,7 @@ function rollShopCard(p: Player, rng: Rng): ShopItem {
     const j = newJoker(id, edition)
     return { key: keyCounter++, kind, id, edition, price: disc(p, j.basePrice) }
   }
-  const pool = kind === 'tarot' ? TAROT_LIST : kind === 'planet' ? PLANET_LIST : SPECTRAL_LIST
+  const pool = kind === 'tarot' ? TAROT_LIST : kind === 'planet' ? PLANET_LIST : kind === 'curse' ? CURSE_LIST : SPECTRAL_LIST
   return { key: keyCounter++, kind, id: rng.pick(pool).id, price: disc(p, consumablePrice(kind as ConsumableKind)) }
 }
 

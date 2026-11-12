@@ -94,9 +94,14 @@ export class ScoreCtx {
 }
 
 /** Chaque joker « actif » avec la définition à utiliser (les copieurs prennent celle de leur cible). */
-function activeJokers(player: Player): { j: JokerInst; def: JokerDef; self: JokerInst }[] {
+function activeJokers(player: Player, combat: CombatState): { j: JokerInst; def: JokerDef; self: JokerInst }[] {
   const out: { j: JokerInst; def: JokerDef; self: JokerInst }[] = []
   player.jokers.forEach((self, i) => {
+    if (self.defId === 'spy') {
+      const target = combat.spyCopies?.[self.uid]
+      if (target) out.push({ j: target, def: getJoker(target.defId), self })
+      return
+    }
     const target = resolveCopy(player.jokers, i)
     if (!target) return
     out.push({ j: target, def: getJoker(target.defId), self })
@@ -122,7 +127,7 @@ export function scoreHand(o: {
     ? { ...o.player, jokers: o.player.jokers.map((j) => ({ ...j, state: { ...j.state } })), stats: { ...o.player.stats } }
     : o.player
   const ctx = new ScoreCtx({ ...o, player })
-  const jokers = activeJokers(player)
+  const jokers = activeJokers(player, o.combat)
   const name = (j: JokerInst) => getJoker(j.defId).name
 
   // 1) Avant le calcul : jokers évolutifs (seulement les vrais, pas les copies)

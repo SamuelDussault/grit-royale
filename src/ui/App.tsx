@@ -6,7 +6,7 @@ import { Session } from '../net/session'
 import { sound } from './sound'
 import { evaluateHand, handBase, HANDS } from '../engine/hands'
 import { collectRules } from '../engine/scoring'
-import { getConsumable, jokerRoom, PLANET_LIST, SPECTRAL_LIST, RARE_SPECTRALS, TAROT_LIST } from '../engine/consumables'
+import { CURSE_LIST, getConsumable, jokerRoom, PLANET_LIST, SPECTRAL_LIST, RARE_SPECTRALS, TAROT_LIST } from '../engine/consumables'
 import type { ShopItem } from '../engine/shop'
 import { JOKER_LIST, sellValue } from '../engine/jokers'
 import Background, { type Mood } from './Background'
@@ -37,7 +37,7 @@ type Anim = {
   stage: 'events' | 'total'
   scoreBefore: number
 }
-type ModalState = null | { kind: 'deck' | 'levels' | 'matches' | 'collection' } | { kind: 'scout'; id: number }
+type ModalState = null | { kind: 'deck' | 'levels' | 'matches' | 'collection' } | { kind: 'scout'; id: number } | { kind: 'target'; uid: number }
 
 let popId = 1
 
@@ -153,7 +153,14 @@ export default function App() {
       force()
       const g = session?.gs
       const cs = g?.combats[meId]
-      if (g && cs?.finished) {
+      if (g && cs?.finished && g.boss) {
+        const won = cs.score >= g.boss.target
+        setTimeout(() => {
+          if (won) sound.win()
+          else sound.lose()
+          setEnding({ won, text: won ? 'BOSS VAINCU' : 'BOSS RATÉ' })
+        }, 500)
+      } else if (g && cs?.finished) {
         const oppId = g.opponents[meId]?.id
         const opp = g.combats[oppId]
         // l'adversaire humain n'a peut-être pas fini : pas de verdict tant qu'on ne sait pas
@@ -196,7 +203,7 @@ export default function App() {
       ? gs.players[meId]?.placement === 1
         ? 'win'
         : 'lose'
-      : gs.phase === 'shop'
+      : gs.phase === 'shop' || gs.phase === 'carousel'
         ? 'shop'
         : ending?.won === false
           ? 'lose'
@@ -352,13 +359,20 @@ export default function App() {
     act({ type: 'discard', ids: selected }, () => setSelected([]))
   }
 
-  const useCons = (uid: number) =>
-    act({ type: 'use', uid, ids: selected }, (r) => {
+  const useCons = (uid: number, target?: number) => {
+    const c = me.consumables.find((x) => x.uid === uid)
+    if (c && getConsumable(c.defId).targetPlayer && target === undefined) {
+      setModal({ kind: 'target', uid })
+      return
+    }
+    return act({ type: 'use', uid, ids: selected, target }, (r) => {
       if (!r.error) {
         setSelected([])
         setConsSel(null)
+        if (target !== undefined) sound.lose()
       }
     })
+  }
 
   // ---------- plateau de jokers ----------
   const jokerTray = (
@@ -482,7 +496,25 @@ export default function App() {
   // ===================== BARRE LATÉRALE =====================
   const sidebar = (
     <aside className="sidebar panel-ui">
-      {gs.phase === 'combat' && opp ? (
+      {gs.phase === 'combat' && gs.boss ? (
+        <div className="blind boss">
+          <div className="blind-head">
+            Round {gs.round} · Mini-boss
+            <Countdown session={session!} />
+          </div>
+          <div className="blind-body">
+            <div className="opp-avatar boss-avatar">☠</div>
+            <div>
+              <div className="opp-name">{gs.boss.name}</div>
+              <div className="t-money">Récompense : {gs.boss.reward} $</div>
+            </div>
+            <div className="opp-score">
+              <div className="muted small">Score à battre</div>
+              <span className="t-red big-num">{fmt(gs.boss.target)}</span>
+            </div>
+          </div>
+        </div>
+      ) : gs.phase === 'combat' && opp ? (
         <div className="blind red">
           <div className="blind-head">
             Round {gs.round} · Duel {oppInfo?.ghost && <span className="ghost">fantôme</span>}
@@ -505,8 +537,8 @@ export default function App() {
       ) : (
         <div className="blind green">
           <div className="blind-head">
-            {gs.phase === 'over' ? 'Fin de partie' : 'Boutique'}
-            {gs.phase === 'shop' && <Countdown session={session!} />}
+            {gs.phase === 'over' ? 'Fin de partie' : gs.phase === 'carousel' ? 'Carrousel' : 'Boutique'}
+            {(gs.phase === 'shop' || gs.phase === 'carousel') && <Countdown session={session!} />}
           </div>
           <div className="blind-body center">
             <div className="muted">{gs.phase === 'over' ? `${gs.round} rounds joués` : `Prochain round : ${gs.round + 1}`}</div>
@@ -615,6 +647,10 @@ export default function App() {
             />
           )}
 
+          {gs.phase === 'carousel' && gs.carousel && (
+            <CarouselArea gs={gs} meId={meId} onPick={(i) => act({ type: 'carousel', index: i }, (r) => !r.error && sound.coin())} />
+          )}
+
           {me.alive && gs.phase === 'shop' && !myDone && (
             <ShopArea
               gs={gs}
@@ -687,6 +723,36 @@ export default function App() {
       {modal?.kind === 'scout' && (
         <Modal title={gs.players[modal.id].name} onClose={() => setModal(null)}>
           <ScoutView player={gs.players[modal.id]} />
+        </Modal>
+      )}
+      {modal?.kind === 'target' && (
+        <Modal title="Lancer la malédiction sur…" onClose={() => setModal(null)}>
+          <div className="targets">
+            {gs.players
+              .filter((p) => p.alive && p.id !== meId)
+              .map((p) => (
+                <button
+                  key={p.id}
+                  className="target-row"
+                  onClick={() => {
+                    const uid = (modal as { uid: number }).uid
+                    setModal(null)
+                    useCons(uid, p.id)
+                  }}
+                >
+                  <span className="avatar" style={{ background: avatarColor(p.id) }}>
+                    {p.name[0]}
+                  </span>
+                  <span>
+                    {p.name}
+                    {!p.isBot && ' 👤'}
+                  </span>
+                  <span className="hp">♥ {p.hp}</span>
+                  <span className="t-money">{p.gold} $</span>
+                  <span className="muted small">{p.jokers.length} jokers</span>
+                </button>
+              ))}
+          </div>
         </Modal>
       )}
       {modal?.kind === 'matches' && gs.lastReport && (
@@ -887,7 +953,30 @@ function ShopArea(props: {
 
   // résumé du dernier round
   let banner: React.ReactNode = null
-  if (rep) {
+  if (rep?.boss) {
+    const r = rep.boss.results[me.id]
+    const myGold = rep.gold[me.id] ?? []
+    const total = myGold.reduce((a, b) => a + b.amount, 0)
+    if (r)
+      banner = (
+        <div className={`banner ${r.won ? 'win' : 'lose'}`}>
+          <div className="banner-main">
+            <span className="banner-title">{r.won ? `${rep.boss.name} vaincu !` : `${rep.boss.name} t’a résisté`}</span>
+            <span>
+              {fmt(r.score)} / {fmt(rep.boss.target)}
+            </span>
+            {r.won && <span className="t-money">+{r.reward} $ de récompense</span>}
+          </div>
+          <div className="banner-gold">
+            <span className="t-money">+{total} $</span>
+            <span className="muted small">{myGold.map((g) => `${g.label} +${g.amount}`).join(' · ')}</span>
+            <button className="btn orange sm" onClick={props.onMatches}>
+              Tous les scores
+            </button>
+          </div>
+        </div>
+      )
+  } else if (rep) {
     const m = rep.matches.find((x) => x.a === me.id || (x.b === me.id && !x.ghostB))
     if (m) {
       const iAmA = m.a === me.id
@@ -966,6 +1055,25 @@ function ShopArea(props: {
 
 function MatchList({ gs, meId }: { gs: GameState; meId: number }) {
   const r = gs.lastReport!
+  if (r.boss) {
+    const boss = r.boss
+    return (
+      <div className="matches">
+        <div className="muted">
+          {boss.name} — score à battre : {fmt(boss.target)}
+        </div>
+        {Object.entries(boss.results)
+          .sort((a, b) => b[1].score - a[1].score)
+          .map(([id, res]) => (
+            <div key={id} className={`match boss-row ${Number(id) === meId ? 'mine' : ''}`}>
+              <span>{gs.players[Number(id)].name}</span>
+              <span className="t-chips">{fmt(res.score)}</span>
+              <span className={res.won ? 'w' : 't-mult'}>{res.won ? `vaincu · +${res.reward} $` : 'raté'}</span>
+            </div>
+          ))}
+      </div>
+    )
+  }
   return (
     <div className="matches">
       {r.matches.map((m, i) => {
@@ -1022,7 +1130,7 @@ function GameOver({ gs, meId, onRestart }: { gs: GameState; meId: number; onRest
 }
 
 function Collection() {
-  const [tab, setTab] = useState<'jokers' | 'tarot' | 'planet' | 'spectral'>('jokers')
+  const [tab, setTab] = useState<'jokers' | 'tarot' | 'planet' | 'spectral' | 'curse'>('jokers')
   return (
     <div className="collection">
       <div className="tabs">
@@ -1035,6 +1143,9 @@ function Collection() {
         <button className={`btn red sm ${tab === 'planet' ? 'on' : ''}`} onClick={() => setTab('planet')}>
           Planètes
         </button>
+        <button className={`btn red sm ${tab === 'curse' ? 'on' : ''}`} onClick={() => setTab('curse')}>
+          Malédictions
+        </button>
         <button className={`btn red sm ${tab === 'spectral' ? 'on' : ''}`} onClick={() => setTab('spectral')}>
           Spectrales
         </button>
@@ -1044,6 +1155,7 @@ function Collection() {
         {tab === 'tarot' && TAROT_LIST.map((c) => <ConsumableCard key={c.id} kind="tarot" defId={c.id} tipBelow />)}
         {tab === 'planet' && PLANET_LIST.map((c) => <ConsumableCard key={c.id} kind="planet" defId={c.id} tipBelow />)}
         {tab === 'spectral' && [...SPECTRAL_LIST, ...RARE_SPECTRALS].map((c) => <ConsumableCard key={c.id} kind="spectral" defId={c.id} tipBelow />)}
+        {tab === 'curse' && CURSE_LIST.map((c) => <ConsumableCard key={c.id} kind="curse" defId={c.id} tipBelow />)}
       </div>
     </div>
   )
@@ -1266,6 +1378,45 @@ function IncomeBox({ me }: { me: Player }) {
         Tu as {me.gold} $ → {interest} $ d’intérêts.
         {nextStep !== null ? ` Garde ${nextStep} $ pour en gagner ${interest + 1}.` : ' Tu touches le maximum : bravo !'} Dépenser, c’est te renforcer
         maintenant ; garder, c’est plus d’argent plus tard.
+      </div>
+    </div>
+  )
+}
+
+// ===================== CARROUSEL =====================
+function CarouselArea({ gs, meId, onPick }: { gs: GameState; meId: number; onPick: (i: number) => void }) {
+  const c = gs.carousel!
+  const current = c.order[c.turn]
+  const myTurn = current === meId
+  return (
+    <div className="carousel panel-ui">
+      <div className="carousel-title">🎠 Carrousel de jokers</div>
+      <div className="muted">Chacun choisit un joker gratuit, à tour de rôle. Le joueur qui a le moins de PV choisit en premier.</div>
+      <div className={`carousel-turn ${myTurn ? 'mine' : ''}`}>
+        {myTurn ? 'À toi de choisir !' : current !== undefined ? `${gs.players[current].name} choisit…` : '…'}
+      </div>
+      <div className="carousel-items">
+        {c.items.map((it, i) => (
+          <div key={i} className={`shop-item ${it.takenBy !== undefined ? 'sold' : ''}`}>
+            <JokerCard defId={it.defId} edition={it.edition} />
+            {it.takenBy !== undefined ? (
+              <div className="taken-by">{gs.players[it.takenBy].name}</div>
+            ) : (
+              myTurn && (
+                <button className="btn green sm buy" onClick={() => onPick(i)}>
+                  Prendre
+                </button>
+              )
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="carousel-order">
+        {c.order.map((id, k) => (
+          <span key={id} className={`order-chip ${k === c.turn ? 'now' : k < c.turn ? 'done' : ''} ${id === meId ? 'me' : ''}`}>
+            {k + 1}. {gs.players[id].name} <span className="hp">♥{Math.max(0, gs.players[id].hp)}</span>
+          </span>
+        ))}
       </div>
     </div>
   )

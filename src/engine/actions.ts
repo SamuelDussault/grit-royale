@@ -3,20 +3,21 @@ import type { ScoreResult } from './types'
 import { discardCards, playHand } from './combat'
 import { applyConsumable, getConsumable, useBlocker, type UseEnv } from './consumables'
 import { buy, pickPackOption, reroll, sellConsumable, sellJoker, toggleLock } from './shop'
-import { launchGame, maybeAdvance, type GameState } from './game'
+import { carouselPick, launchGame, maybeAdvance, type GameState } from './game'
 import { pickShopItem } from './bot'
 
 export type Action =
   | { type: 'start' }
   | { type: 'play'; ids: number[] }
   | { type: 'discard'; ids: number[] }
-  | { type: 'use'; uid: number; ids: number[] }
+  | { type: 'use'; uid: number; ids: number[]; target?: number }
   | { type: 'sellJoker'; uid: number }
   | { type: 'sellCons'; uid: number }
   | { type: 'moveJoker'; from: number; to: number }
   | { type: 'buy'; key: number }
   | { type: 'reroll' }
   | { type: 'lock'; key: number }
+  | { type: 'carousel'; index: number }
   | { type: 'pick'; index: number; ids: number[] }
   | { type: 'skipPack' }
   | { type: 'ready' }
@@ -62,7 +63,7 @@ export function applyAction(gs: GameState, pid: number, a: Action): ActionResult
         if (!c) return { error: 'Introuvable' }
         const inCombat = gs.phase === 'combat' && !gs.ready[pid] && !!gs.combats[pid]
         const handCards = inCombat ? gs.combats[pid].hand : (gs.packs[pid]?.handCards ?? [])
-        const env: UseEnv = { rng: gs.rng, handCards, inCombat }
+        const env: UseEnv = { rng: gs.rng, handCards, inCombat, target: a.target !== undefined ? gs.players[a.target] : undefined }
         const selected = handCards.filter((h) => a.ids.includes(h.id))
         me.consumables = me.consumables.filter((x) => x !== c)
         const block = useBlocker(me, c.defId, selected, env)
@@ -104,6 +105,8 @@ export function applyAction(gs: GameState, pid: number, a: Action): ActionResult
         const err = reroll(me, gs.shops[pid], gs.rng)
         return err ? { error: err } : {}
       }
+      case 'carousel':
+        return carouselPick(gs, pid, a.index)
       case 'lock': {
         if (gs.phase !== 'shop' || gs.ready[pid]) return { error: 'La boutique est fermée' }
         const r = toggleLock(gs.shops[pid], a.key)

@@ -847,6 +847,104 @@ const SCENES: Record<string, Scene> = {
     p.coin(38, 78, 4)
   },
 
+  spy: (p) => {
+    jester(p, { ca: C.black, cb: hex('#8a6d3b'), collar: hex('#c9b48a'), hat: 'top', eyes: 'sleepy', mouth: 'smirk', hair: C.black, nose: false, arms: 'hold' })
+    // loupe
+    p.ell(40, 60, 6, 6, hex('#bfe7ff'), Z.top)
+    p.ell(40, 60, 4, 4, hex('#e9f7ff'), Z.detail, true)
+    p.line(36, 66, 31, 74, C.brown, Z.top, 2)
+    p.text('?', 38, 57, C.ink, Z.detail)
+  },
+  pickpocket: (p) => {
+    p.bg(hex('#2b2b38'), 'flat')
+    p.rect(-6, 50, 30, 36, C.black, Z.mid)
+    p.ell(26, 52, 8, 7, C.skin, Z.front)
+    for (const x of [21, 25, 29]) p.rect(x, 40, 3, 10, C.skin, Z.front)
+    p.ell(30, 30, 10, 10, hex('#8b5a2b'), Z.mid)
+    p.bez([24, 22], [30, 16], [36, 22], 1.5, 1.5, hex('#5e3b1c'), Z.top)
+    p.coin(30, 31, 5)
+    p.coin(10, 22, 3)
+    p.coin(40, 12, 3)
+    p.text('-2$', 4, 70, C.red, Z.detail)
+  },
+  bookmaker: (p) => {
+    jester(p, { ca: C.green, cb: C.black, collar: C.white, hat: 'beanie', eyes: 'dollar', mouth: 'grin', arms: 'hold' })
+    p.rect(30, 62, 11, 11, C.white, Z.top)
+    for (const [x, y] of [[33, 65], [38, 65], [33, 70], [38, 70]]) p.set(x, y, C.ink, Z.detail)
+    p.coin(6, 72, 4)
+    p.coin(12, 76, 3)
+  },
+  vengeance: (p) => {
+    p.bg(hex('#2b1020'), 'rays', hex('#3a1529'))
+    jester(p, { ca: C.red, cb: C.black, collar: C.red, eyes: 'angry', mouth: 'teeth', makeup: 1 })
+    p.text('×', 4, 70, C.yellow, Z.detail, 2)
+  },
+  kingHill: (p) => {
+    p.bg(hex('#cde8f5'), 'flat')
+    p.ell(23.5, 92, 40, 30, hex('#6fbf5f'), Z.mid)
+    p.ell(10, 96, 22, 20, hex('#5aa84c'), Z.back)
+    p.line(23.5, 30, 23.5, 64, C.brown, Z.top, 2)
+    p.poly([[24, 30], [40, 35], [24, 40]], R, Z.top)
+    // couronne
+    p.poly([[10, 22], [14, 10], [19, 18], [23.5, 6], [28, 18], [33, 10], [37, 22]], C.gold, Z.front)
+    p.rect(10, 20, 28, 6, C.gold, Z.front)
+    p.ell(23.5, 23, 2, 2, C.red, Z.detail)
+    p.text('×2', 30, 66, C.red, Z.detail, 2)
+  },
+  lastBreath: (p) => {
+    p.bg(hex('#1f1f2b'), 'flat')
+    p.suit('H', 23.5, 34, 5, hex('#8a2a3a'), Z.front)
+    p.line(20, 18, 26, 30, C.ink, Z.detail, 2)
+    p.line(26, 30, 21, 40, C.ink, Z.detail, 2)
+    p.rect(8, 58, 31, 6, C.black, Z.mid)
+    p.rect(9, 59, 5, 4, C.red, Z.top, true)
+    p.text('20 PV', 12, 68, C.red)
+    p.text('×3', 15, 2, C.yellow, Z.detail, 2)
+  },
+  pacifist: (p) => {
+    p.ell(23.5, 36, 14, 10, C.pure, Z.mid)
+    p.ell(34, 28, 6, 5, C.pure, Z.front)
+    p.poly([[39, 28], [45, 30], [39, 31]], C.yellow, Z.top)
+    p.set(35, 27, C.ink, Z.detail)
+    p.poly([[10, 34], [-2, 22], [16, 30]], C.white, Z.front)
+    p.poly([[12, 40], [0, 50], [16, 42]], C.white, Z.front)
+    p.bez([42, 32], [46, 40], [40, 46], 0.8, 0.8, C.green, Z.top)
+    for (const [x, y] of [[44, 37], [41, 42], [45, 43]]) p.ell(x, y, 1.5, 1, C.green, Z.top)
+    p.coin(23.5, 64, 6)
+  },
+  collector: (p) => {
+    p.rect(-2, 8, 51, 66, hex('#8b5a2b'), Z.mid)
+    p.rect(1, 11, 45, 60, hex('#f3e9d2'), Z.front)
+    const cs: [number, number, string, S][] = [[4, 14, 'A', 'S'], [16, 14, 'K', 'H'], [28, 14, 'Q', 'D'], [4, 33, 'J', 'C'], [16, 33, '7', 'H'], [28, 33, '3', 'S'], [4, 52, '9', 'D'], [16, 52, '5', 'C'], [28, 52, '2', 'H']]
+    for (const [x, y, r, su] of cs) p.card(x + 2, y, r, su, Z.top)
+    p.text('+1', 34, 76, C.red, Z.detail)
+  },
+  saboteur: (p) => {
+    p.bg(hex('#ffe6cc'), 'rays', hex('#ffd9b3'))
+    p.ell(23.5, 46, 16, 16, C.black, Z.front)
+    p.rect(19, 24, 9, 7, C.dgrey, Z.top)
+    p.bez([23.5, 24], [26, 12], [36, 10], 1.2, 1, hex('#c9b48a'), Z.top)
+    p.star(37, 9, 4, C.orange, Z.top)
+    p.ell(17, 40, 4, 3, C.grey, Z.detail, true)
+    p.text('-1', 16, 70, C.red, Z.detail, 2)
+  },
+  ghostHunter: (p) => {
+    p.bg(hex('#1d2b3a'), 'stars', hex('#7fa8c9'))
+    p.ell(30, 32, 13, 14, hex('#e8f4ff'), Z.mid)
+    p.poly([[17, 32], [43, 32], [43, 54], [38, 50], [34, 54], [30, 50], [26, 54], [22, 50], [17, 54]], hex('#e8f4ff'), Z.mid)
+    p.ell(25, 30, 2, 3, C.ink, Z.detail, true)
+    p.ell(34, 30, 2, 3, C.ink, Z.detail, true)
+    p.ell(29.5, 38, 2, 2, C.ink, Z.detail, true)
+    // filet
+    p.line(2, 78, 14, 44, C.brown, Z.top, 2)
+    p.ell(14, 38, 9, 9, hex('#c9b48a'), Z.top)
+    p.ell(14, 38, 7, 7, hex('#1d2b3a'), Z.top, true)
+    for (let k = -6; k <= 6; k += 3) {
+      p.line(14 + k, 31, 14 + k, 45, hex('#c9b48a'), Z.detail)
+      p.line(7, 38 + k, 21, 38 + k, hex('#c9b48a'), Z.detail)
+    }
+    p.text('+50', 26, 66, C.cyan, Z.detail, 2)
+  },
   underdog: (p) => {
     p.bg(hex('#ffe6cc'), 'rays', hex('#ffd9b3'))
     p.ell(23.5, 56, 13, 14, hex('#c98e62'), Z.mid)
@@ -863,7 +961,7 @@ const SCENES: Record<string, Scene> = {
   },
 }
 
-const KEEP_BG = new Set(['supernova', 'constellation', 'rocket', 'toTheMoon', 'shootMoon', 'campfire', 'hack', 'summit', 'business', 'drivers', 'rideBus', 'scary', 'sock', 'golden', 'steelJoker', 'hologram', 'vampire', 'blueprint', 'dusk', 'hotStreak', 'canio', 'chicot', 'triboulet', 'wrathful', 'cardSharp', 'stencil', 'glassJoker'])
+const KEEP_BG = new Set(['pickpocket', 'vengeance', 'kingHill', 'lastBreath', 'saboteur', 'ghostHunter', 'supernova', 'constellation', 'rocket', 'toTheMoon', 'shootMoon', 'campfire', 'hack', 'summit', 'business', 'drivers', 'rideBus', 'scary', 'sock', 'golden', 'steelJoker', 'hologram', 'vampire', 'blueprint', 'dusk', 'hotStreak', 'canio', 'chicot', 'triboulet', 'wrathful', 'cardSharp', 'stencil', 'glassJoker'])
 
 /** Dessine la scène d'un joker (sans la convertir en image) — utile pour les tests. */
 export function paintJoker(defId: string): Painter | null {

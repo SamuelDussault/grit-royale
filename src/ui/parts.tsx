@@ -108,8 +108,8 @@ export function jokerTip(defId: string, edition?: Edition, inst?: JokerInst, pla
 
 export function consumableTip(defId: string) {
   const d = getConsumable(defId)
-  const kind = { tarot: 'Tarot', planet: 'Planète', spectral: 'Spectrale' }[d.kind]
-  const cls = { tarot: 'pill-purple', planet: 'pill-blue', spectral: 'pill-dark' }[d.kind]
+  const kind = { tarot: 'Tarot', planet: 'Planète', spectral: 'Spectrale', curse: 'Malédiction : vise un adversaire' }[d.kind]
+  const cls = { tarot: 'pill-purple', planet: 'pill-blue', spectral: 'pill-dark', curse: 'pill-red' }[d.kind]
   return (
     <TipBox title={d.name} pills={[{ text: kind, cls }]}>
       <Colorize text={d.desc} />

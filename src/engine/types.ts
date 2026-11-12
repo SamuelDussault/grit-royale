@@ -3,7 +3,7 @@
 
 export type Suit = 'S' | 'H' | 'D' | 'C' // Pique, Cœur, Carreau, Trèfle
 
-export type Enhancement = 'bonus' | 'mult' | 'wild' | 'glass' | 'steel' | 'stone' | 'gold' | 'lucky'
+export type Enhancement = 'bonus' | 'mult' | 'wild' | 'glass' | 'steel' | 'stone' | 'gold' | 'lucky' | 'cursed'
 export type Edition = 'foil' | 'holo' | 'poly' | 'negative'
 export type Seal = 'gold' | 'red' | 'blue' | 'purple'
 
@@ -40,7 +40,7 @@ export interface JokerInst {
   basePrice: number
 }
 
-export type ConsumableKind = 'tarot' | 'planet' | 'spectral'
+export type ConsumableKind = 'tarot' | 'planet' | 'spectral' | 'curse'
 
 export interface Consumable {
   uid: number
@@ -70,6 +70,10 @@ export interface Player {
   alive: boolean
   placement: number
   vouchers: string[]
+  /** Joueurs qui t'ont battu au moins une fois (La Vengeance). */
+  beatenBy: number[]
+  /** Mains en moins au prochain combat (malédiction Brouillard). */
+  nextHandsMalus?: number
   lastConsumable?: { kind: ConsumableKind; defId: string } // pour Le Mat
   stats: {
     planetsUsed: number
@@ -99,6 +103,13 @@ export interface CombatState {
   playedTypes: HandType[] // types joués ce round
   finished: boolean
   oppHp?: number // PV de l'adversaire (pour certains jokers)
+  oppId?: number // -1 = mini-boss
+  vsGhost?: boolean
+  vsBoss?: boolean
+  lobbyMaxHp?: number
+  lobbyJokerKinds?: number
+  /** L'Espion : joker copié chez l'adversaire, par uid d'Espion. */
+  spyCopies?: Record<number, JokerInst>
 }
 
 export interface ScoreTarget {

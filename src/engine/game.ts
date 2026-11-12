@@ -7,8 +7,9 @@ import { HAND_TYPES } from './hands'
 import { Rng } from './rng'
 import { botCombat, botShop } from './bot'
 import { startCombat } from './combat'
-import { giveConsumable, PLANET_FOR } from './consumables'
+import { addJoker, giveConsumable, jokerRoom, newJoker, PLANET_FOR, randomJokerId } from './consumables'
 import { getJoker } from './jokers'
+import { rollEdition } from './shop'
 import { newShop, type PackSession, type ShopState } from './shop'
 
 export const CONFIG = {
@@ -21,6 +22,60 @@ export const CONFIG = {
   /** Durées des phases en ligne (ms) */
   shopTime: 60_000,
   combatTime: 100_000,
+  carouselPickTime: 15_000,
+}
+
+// ---------------- mini-boss ----------------
+export interface Boss {
+  name: string
+  target: number
+  reward: number
+}
+
+const BOSS_NAMES = ['Le Croupier', 'La Dame de Fer', 'Le Grand Chambellan', 'L’Usurier', 'Le Roi Fou', 'La Bête du Casino', 'L’Empereur Pourpre']
+
+/** Mini-boss aux rounds 1, 5, 10, 15, 20… */
+export function isBossRound(round: number): boolean {
+  return round === 1 || round % 5 === 0
+}
+
+/** Score à battre et récompense (calibrés sur les scores moyens de chaque round). */
+export function bossFor(round: number): Boss {
+  const table: [number, number][] = [
+    [1, 850],
+    [5, 3000],
+    [10, 17000],
+    [15, 50000],
+    [20, 130000],
+  ]
+  let target: number
+  const last = table[table.length - 1]
+  if (round >= last[0]) target = last[1] * Math.pow(2.6, (round - last[0]) / 5)
+  else {
+    let i = 0
+    while (table[i + 1][0] <= round) i++
+    const [r0, t0] = table[i]
+    const [r1, t1] = table[i + 1]
+    target = t0 * Math.pow(t1 / t0, (round - r0) / (r1 - r0))
+  }
+  const idx = round === 1 ? 0 : Math.floor(round / 5)
+  return {
+    name: BOSS_NAMES[idx % BOSS_NAMES.length],
+    target: Math.round(target / 50) * 50,
+    reward: Math.min(14, 5 + idx * 2),
+  }
+}
+
+// ---------------- carrousel ----------------
+/** Carrousel de jokers après les rounds 3, 8, 13, 18… */
+export function isCarouselAfter(round: number): boolean {
+  return round % 5 === 3
+}
+
+export interface Carousel {
+  items: { defId: string; edition?: import('./types').Edition; takenBy?: number }[]
+  order: number[] // ids des joueurs, dans l'ordre de choix (le moins de PV d'abord)
+  turn: number
 }
 
 const BOT_NAMES = ['Ruby', 'Gaston', 'Mireille', 'Bertrand', 'Zoé', 'Lucien', 'Fernande', 'Ti-Jean', 'Albert', 'Simone', 'Rosaire', 'Huguette']
@@ -46,10 +101,12 @@ export interface RoundReport {
   gold: Record<number, GoldLine[]> // détail des gains, par joueur
   messages: Record<number, string[]>
   eliminated: number[]
+  /** Round de mini-boss : score de chacun et récompense. */
+  boss?: Boss & { results: Record<number, { score: number; won: boolean; reward: number }> }
 }
 
 /** lobby = salle d'attente avant la partie */
-export type Phase = 'lobby' | 'shop' | 'combat' | 'over'
+export type Phase = 'lobby' | 'shop' | 'combat' | 'carousel' | 'over'
 
 export interface GameState {
   rng: Rng
@@ -69,6 +126,9 @@ export interface GameState {
   /** Minuterie (parties en ligne) : heure limite de la phase, selon l'horloge de l'hôte. */
   timers?: boolean
   deadline?: number
+  /** Mini-boss du round en cours (rounds 1, 5, 10…) */
+  boss?: Boss
+  carousel?: Carousel
 }
 
 function emptyHands(v: number): Record<HandType, number> {
@@ -106,6 +166,7 @@ function newPlayer(id: number, name: string, isBot: boolean, rng: Rng): Player {
     alive: true,
     placement: 0,
     vouchers: [],
+    beatenBy: [],
     stats: { planetsUsed: 0, tarotsUsed: 0, cardsAdded: 0, glassBroken: 0, luckyTriggers: 0, cardsSold: 0, roundsWon: 0 },
     bot: isBot ? botProfile(rng) : undefined,
   }
@@ -140,6 +201,10 @@ export function aliveHumans(gs: GameState): Player[] {
 }
 /** Humains encore en vie qui n'ont pas fini la phase en cours. */
 export function waitingFor(gs: GameState): Player[] {
+  if (gs.phase === 'carousel' && gs.carousel) {
+    const id = gs.carousel.order[gs.carousel.turn]
+    return id !== undefined ? [gs.players[id]] : []
+  }
   return aliveHumans(gs).filter((p) => !gs.ready[p.id])
 }
 
@@ -151,8 +216,82 @@ function openShops(gs: GameState) {
   gs.phase = 'shop'
   gs.deadline = gs.timers ? Date.now() + CONFIG.shopTime : undefined
   for (const p of alivePlayers(gs)) gs.shops[p.id] = newShop(p, gs.rng, prev[p.id])
-  for (const p of alivePlayers(gs)) if (p.isBot) botShop(p, gs.shops[p.id], gs.rng, gs.round + 1)
+  for (const p of alivePlayers(gs)) if (p.isBot) botShop(p, gs.shops[p.id], gs.rng, gs.round + 1, alivePlayers(gs))
   maybeAdvance(gs)
+}
+
+// ---------------- carrousel ----------------
+function openCarousel(gs: GameState) {
+  const alive = alivePlayers(gs)
+  const taken: string[] = []
+  const items: Carousel['items'] = alive.map(() => {
+    const defId = randomJokerId(gs.rng, gs.rng.chance(0.25) ? 3 : 2, taken)
+    taken.push(defId)
+    return { defId, edition: gs.rng.chance(0.3) ? (rollEdition(gs.rng) ?? 'foil') : undefined }
+  })
+  const order = gs.rng.shuffle(alive.map((p) => p.id)).sort((a, b) => gs.players[a].hp - gs.players[b].hp)
+  gs.carousel = { items, order, turn: 0 }
+  gs.phase = 'carousel'
+  gs.ready = {}
+  gs.packs = {}
+  runCarousel(gs)
+}
+
+function carouselValue(defId: string, edition?: string): number {
+  const d = getJoker(defId)
+  return d.rarity * 4 + d.cost + (edition ? 3 : 0)
+}
+
+/** Le joueur dont c'est le tour prend un joker. Renvoie un message. */
+export function carouselPick(gs: GameState, pid: number, index: number): { error?: string; msg?: string } {
+  const c = gs.carousel
+  if (gs.phase !== 'carousel' || !c) return { error: 'Pas de carrousel en cours' }
+  if (c.order[c.turn] !== pid) return { error: 'Ce n’est pas ton tour' }
+  const item = c.items[index]
+  if (!item || item.takenBy !== undefined) return { error: 'Déjà pris' }
+  const p = gs.players[pid]
+  item.takenBy = pid
+  let msg: string
+  const j = newJoker(item.defId, item.edition)
+  if (jokerRoom(p, j)) {
+    addJoker(p, j)
+    msg = `${getJoker(item.defId).name} obtenu au carrousel !`
+  } else {
+    p.gold += 4
+    msg = 'Plus de place pour un joker : +4 $ à la place'
+  }
+  c.turn++
+  gs.deadline = gs.timers ? Date.now() + CONFIG.carouselPickTime : undefined
+  runCarousel(gs)
+  return { msg }
+}
+
+/** Fait jouer les bots jusqu'au prochain humain ; ferme le carrousel à la fin. */
+function runCarousel(gs: GameState) {
+  const c = gs.carousel!
+  while (c.turn < c.order.length) {
+    const p = gs.players[c.order[c.turn]]
+    if (!p.alive) {
+      c.turn++
+      continue
+    }
+    if (!p.isBot) {
+      gs.deadline = gs.timers ? Date.now() + CONFIG.carouselPickTime : undefined
+      return
+    }
+    const best = c.items
+      .map((it, i) => ({ it, i }))
+      .filter(({ it }) => it.takenBy === undefined)
+      .sort((a, b) => carouselValue(b.it.defId, b.it.edition) - carouselValue(a.it.defId, a.it.edition))[0]
+    if (!best) break
+    best.it.takenBy = p.id
+    const j = newJoker(best.it.defId, best.it.edition)
+    if (jokerRoom(p, j)) addJoker(p, j)
+    else p.gold += 4
+    c.turn++
+  }
+  gs.carousel = { ...c, turn: c.order.length }
+  openShops(gs)
 }
 
 /** Dégâts infligés au perdant. */
@@ -164,6 +303,7 @@ export function computeDamage(round: number, winnerScore: number, loserScore: nu
   let dmg = base + margin
   for (const j of winner.jokers) dmg += getJoker(j.defId).damageBonus ?? 0
   for (const j of loser.jokers) dmg *= getJoker(j.defId).damageTakenMult ?? 1
+  for (const j of loser.jokers) dmg += getJoker(j.defId).damageTakenBonus ?? 0
   if (loser.vouchers.includes('fortress')) dmg -= 2
   return Math.max(1, Math.ceil(dmg))
 }
@@ -180,28 +320,74 @@ function pairUp(gs: GameState): Match[] {
   return matches
 }
 
-/** Lance un round : appariements, combats des bots, combats des humains. */
+/** Prépare un combat : infos du lobby pour les jokers, malédictions, Saboteur, Espion. */
+function prepareCombat(gs: GameState, p: Player): CombatState {
+  const info = gs.opponents[p.id]
+  const opp = info && info.id >= 0 ? gs.players[info.id] : undefined
+  const cs = startCombat(p, gs.rng, opp?.hp)
+  cs.oppId = info?.id
+  cs.vsGhost = info?.ghost
+  cs.vsBoss = !!gs.boss
+  cs.lobbyMaxHp = Math.max(...alivePlayers(gs).map((x) => x.hp))
+  cs.lobbyJokerKinds = new Set(alivePlayers(gs).flatMap((x) => x.jokers.map((j) => j.defId))).size
+  // Brouillard : une main de moins
+  if (p.nextHandsMalus) {
+    cs.handsLeft = Math.max(1, cs.handsLeft - p.nextHandsMalus)
+    p.nextHandsMalus = 0
+  }
+  if (opp && !info.ghost) {
+    // Saboteur adverse : une défausse de moins
+    const sab = opp.jokers.filter((j) => j.defId === 'saboteur').length
+    cs.discardsLeft = Math.max(0, cs.discardsLeft - sab)
+  }
+  // Espion : copie un joker au hasard de l'adversaire
+  const spies = p.jokers.filter((j) => j.defId === 'spy')
+  if (spies.length && opp) {
+    const pool = opp.jokers.filter((j) => {
+      const d = getJoker(j.defId)
+      return !d.copy && d.copyable !== false && j.defId !== 'spy'
+    })
+    cs.spyCopies = {}
+    for (const s of spies) {
+      if (!pool.length) break
+      const t = gs.rng.pick(pool)
+      cs.spyCopies[s.uid] = { ...t, state: { ...t.state } }
+    }
+  }
+  return cs
+}
+
+/** Lance un round : appariements (ou mini-boss), combats des bots, combats des humains. */
 export function startRound(gs: GameState) {
   gs.round++
   gs.packs = {}
   gs.ready = {}
-  gs.matches = pairUp(gs)
   gs.combats = {}
   gs.opponents = {}
   gs.phase = 'combat'
+  gs.carousel = undefined
   gs.deadline = gs.timers ? Date.now() + CONFIG.combatTime : undefined
-  for (const m of gs.matches) {
-    gs.opponents[m.a] = { id: m.b, ghost: !!m.ghostB }
-    if (!m.ghostB) gs.opponents[m.b] = { id: m.a, ghost: false }
+  if (isBossRound(gs.round)) {
+    gs.boss = bossFor(gs.round)
+    gs.matches = []
+    for (const p of alivePlayers(gs)) gs.opponents[p.id] = { id: -1, ghost: false }
+  } else {
+    gs.boss = undefined
+    gs.matches = pairUp(gs)
+    for (const m of gs.matches) {
+      gs.opponents[m.a] = { id: m.b, ghost: !!m.ghostB }
+      if (!m.ghostB) gs.opponents[m.b] = { id: m.a, ghost: false }
+    }
+    // Bookmaker : la mise est prise avant le duel
+    for (const p of alivePlayers(gs))
+      for (const j of p.jokers) if (j.defId === 'bookmaker') j.state.bet = Math.min(10, Math.floor(Math.max(0, p.gold) * 0.25))
   }
   for (const p of alivePlayers(gs)) {
-    const opp = gs.players[gs.opponents[p.id].id]
+    const cs = prepareCombat(gs, p)
     if (p.isBot) {
-      gs.combats[p.id] = botCombat(p, gs.rng, opp.hp)
+      gs.combats[p.id] = botCombat(p, gs.rng, cs.oppHp, cs)
       gs.ready[p.id] = true
-    } else {
-      gs.combats[p.id] = startCombat(p, gs.rng, opp.hp)
-    }
+    } else gs.combats[p.id] = cs
   }
   maybeAdvance(gs)
 }
@@ -218,6 +404,7 @@ export function maybeAdvance(gs: GameState) {
   } else if (gs.phase === 'combat' && waitingFor(gs).length === 0) {
     resolveRound(gs)
     if (isGameOver(gs)) gs.phase = 'over'
+    else if (isCarouselAfter(gs.round)) openCarousel(gs)
     else openShops(gs)
   }
 }
@@ -234,12 +421,13 @@ function startRoundBotsOnly(gs: GameState) {
   gs.round++
   gs.matches = pairUp(gs)
   gs.combats = {}
+  gs.boss = undefined
   for (const m of gs.matches) gs.opponents[m.a] = { id: m.b, ghost: !!m.ghostB }
   for (const p of alivePlayers(gs)) gs.combats[p.id] = botCombat(p, gs.rng)
   resolveRound(gs)
   for (const p of alivePlayers(gs)) {
     const shop = newShop(p, gs.rng)
-    botShop(p, shop, gs.rng, gs.round + 1)
+    botShop(p, shop, gs.rng, gs.round + 1, alivePlayers(gs))
   }
 }
 
@@ -255,6 +443,12 @@ function resolveRound(gs: GameState) {
   const goldAll: Record<number, GoldLine[]> = {}
   const msg = (id: number, t: string) => (messages[id] ??= []).push(t)
   const results = new Map<number, boolean>() // id → a gagné ?
+  const ties = new Set<number>()
+  const extra: Record<number, GoldLine[]> = {}
+  const addExtra = (id: number, label: string, amount: number) => {
+    if (amount) (extra[id] ??= []).push({ label, amount })
+  }
+  const count = (p: Player, id: string) => p.jokers.filter((j) => j.defId === id).length
 
   for (const m of gs.matches) {
     const A = gs.players[m.a]
@@ -265,7 +459,14 @@ function resolveRound(gs: GameState) {
       m.winner = null
       m.damage = 0
       results.set(m.a, false)
-      if (!m.ghostB) results.set(m.b, false)
+      ties.add(m.a)
+      if (!m.ghostB) {
+        results.set(m.b, false)
+        ties.add(m.b)
+      }
+      // Pacifiste : égalité
+      addExtra(m.a, 'Le Pacifiste', 5 * count(A, 'pacifist'))
+      if (!m.ghostB) addExtra(m.b, 'Le Pacifiste', 5 * count(B, 'pacifist'))
       continue
     }
     const aWins = m.scoreA > m.scoreB
@@ -278,17 +479,54 @@ function resolveRound(gs: GameState) {
     } else loser.hp -= m.damage
     results.set(m.a, aWins)
     if (!m.ghostB) results.set(m.b, !aWins)
+    // La Vengeance : on retient qui nous a battus
+    const realLoser = m.ghostB && aWins ? null : loser
+    if (realLoser && !realLoser.beatenBy.includes(winner.id)) realLoser.beatenBy.push(winner.id)
+    const realWinner = m.ghostB && !aWins ? null : winner
+    if (realWinner) {
+      // Pickpocket : vol de 2 $ au perdant (pas sur un fantôme)
+      if (!m.ghostB) {
+        const steal = Math.min(Math.max(0, loser.gold), 2 * count(winner, 'pickpocket'))
+        if (steal) {
+          loser.gold -= steal
+          addExtra(winner.id, 'Le Pickpocket', steal)
+          msg(loser.id, `${winner.name} t’a volé ${steal} $ (Pickpocket)`)
+        }
+      }
+      // Pacifiste : victoire serrée
+      if (Math.min(m.scoreA, m.scoreB) >= 0.9 * Math.max(m.scoreA, m.scoreB)) addExtra(winner.id, 'Le Pacifiste', 5 * count(winner, 'pacifist'))
+    }
+  }
+
+  // ---- mini-boss ----
+  let bossInfo: RoundReport['boss']
+  if (gs.boss) {
+    const boss = gs.boss
+    bossInfo = { ...boss, results: {} }
+    for (const p of alivePlayers(gs)) {
+      const score = gs.combats[p.id]?.score ?? 0
+      const won = score >= boss.target
+      const crush = score >= boss.target * 2
+      const reward = won ? boss.reward + (crush ? Math.ceil(boss.reward / 2) : 0) : 0
+      bossInfo.results[p.id] = { score, won, reward }
+      results.set(p.id, won)
+      if (won) addExtra(p.id, crush ? `${boss.name} écrasé !` : `${boss.name} vaincu`, reward)
+      msg(p.id, won ? `Mini-boss vaincu : +${reward} $` : `Mini-boss raté (${score} / ${boss.target})`)
+    }
   }
 
   for (const p of alivePlayers(gs)) {
     const won = results.get(p.id) ?? false
-    if (won) {
-      p.winStreak++
-      p.loseStreak = 0
-      p.stats.roundsWon++
-    } else {
-      p.loseStreak++
-      p.winStreak = 0
+    // les séries ne comptent que les duels (pas les mini-boss)
+    if (!gs.boss) {
+      if (won) {
+        p.winStreak++
+        p.loseStreak = 0
+        p.stats.roundsWon++
+      } else {
+        p.loseStreak++
+        p.winStreak = 0
+      }
     }
     const lines: GoldLine[] = []
     const add = (label: string, amount: number) => {
@@ -300,8 +538,21 @@ function resolveRound(gs: GameState) {
     add('Intérêts', Math.min(cap, Math.floor(g / CONFIG.interestPer)))
     const moons = p.jokers.filter((j) => j.defId === 'toTheMoon').length
     add('Vers la Lune', moons * Math.floor(g / 5))
-    if (won) add('Victoire', 1)
-    add(won ? 'Série de victoires' : 'Série de défaites', streakBonus(won ? p.winStreak : p.loseStreak))
+    if (!gs.boss) {
+      if (won) add('Victoire', 1)
+      add(won ? 'Série de victoires' : 'Série de défaites', streakBonus(won ? p.winStreak : p.loseStreak))
+      // Bookmaker : mise gagnée ou perdue
+      for (const j of p.jokers)
+        if (j.defId === 'bookmaker' && j.state.bet && !ties.has(p.id)) {
+          if (won) add('Le Bookmaker (mise gagnée)', j.state.bet)
+          else {
+            const lost = Math.min(Math.max(0, p.gold), j.state.bet)
+            p.gold -= lost
+            msg(p.id, `Le Bookmaker : mise perdue (−${lost} $)`)
+          }
+        }
+    }
+    for (const l of extra[p.id] ?? []) lines.push(l)
 
     const cs = gs.combats[p.id]
     if (cs) {
@@ -354,7 +605,7 @@ function resolveRound(gs: GameState) {
     best.placement = 1
   }
 
-  gs.lastReport = { round: gs.round, matches: gs.matches, gold: goldAll, messages, eliminated }
+  gs.lastReport = { round: gs.round, matches: gs.matches, gold: goldAll, messages, eliminated, boss: bossInfo }
 }
 
 export function isGameOver(gs: GameState): boolean {
@@ -390,8 +641,11 @@ export function unseatHuman(gs: GameState, id: number) {
     gs.ready[id] = true
   } else if (gs.phase === 'shop' && p.alive && !gs.ready[id]) {
     gs.packs[id] = undefined
-    botShop(p, gs.shops[id], gs.rng, gs.round + 1)
+    botShop(p, gs.shops[id], gs.rng, gs.round + 1, alivePlayers(gs))
     gs.ready[id] = true
+  } else if (gs.phase === 'carousel' && gs.carousel && gs.carousel.order[gs.carousel.turn] === id) {
+    runCarousel(gs)
+    return
   }
   maybeAdvance(gs)
 }
@@ -406,14 +660,26 @@ export function autoPlayHuman(gs: GameState, id: number, advance = true) {
     gs.ready[id] = true
   } else if (gs.phase === 'shop' && !gs.ready[id]) {
     gs.packs[id] = undefined
-    botShop(p, gs.shops[id], gs.rng, gs.round + 1)
+    botShop(p, gs.shops[id], gs.rng, gs.round + 1, alivePlayers(gs))
     gs.ready[id] = true
+  } else if (gs.phase === 'carousel' && gs.carousel && gs.carousel.order[gs.carousel.turn] === id) {
+    const c = gs.carousel
+    const best = c.items.findIndex((it) => it.takenBy === undefined)
+    if (best >= 0) carouselPick(gs, id, best)
+    return
   }
   if (advance) maybeAdvance(gs)
 }
 
 /** Temps écoulé : les humains en retard finissent automatiquement (combat joué par l'IA, boutique fermée). */
 export function checkTimeout(gs: GameState, now = Date.now()): boolean {
+  if (gs.phase === 'carousel' && gs.deadline && now >= gs.deadline && gs.carousel) {
+    // temps écoulé : on prend le premier joker libre pour le joueur en retard
+    const c = gs.carousel
+    const free = c.items.findIndex((it) => it.takenBy === undefined)
+    if (free >= 0) carouselPick(gs, c.order[c.turn], free)
+    return true
+  }
   if (!gs.deadline || now < gs.deadline || (gs.phase !== 'shop' && gs.phase !== 'combat')) return false
   const late = waitingFor(gs).map((p) => p.id)
   if (!late.length) return false

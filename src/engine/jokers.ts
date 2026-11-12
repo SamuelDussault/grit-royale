@@ -36,6 +36,8 @@ export interface JokerDef {
   onElimination?(p: Player, j: JokerInst): number
   damageBonus?: number
   damageTakenMult?: number
+  /** Dégâts supplémentaires subis en cas de défaite. */
+  damageTakenBonus?: number
 }
 
 const faceVal = (r: number) => (r === 14 ? 11 : r >= 11 ? 10 : r)
@@ -146,7 +148,7 @@ const LIST: JokerDef[] = [
     cost: 5,
     desc: () => 'Ajoute le double de la valeur de la plus basse carte gardée en main au Grit',
     onHeld: (ctx, _j, c, l) => {
-      const ranked = ctx.held.filter((h) => h.enh !== 'stone')
+      const ranked = ctx.held.filter((h) => h.enh !== 'stone' && h.enh !== 'cursed')
       if (!ranked.length) return
       const low = ranked.reduce((a, b) => (b.rank < a.rank ? b : a))
       if (c === low) ctx.addMult(2 * faceVal(c.rank), l)
@@ -846,6 +848,99 @@ const LIST: JokerDef[] = [
     desc: () => '+12 Grit si ton adversaire a plus de PV que toi',
     onJoker: (ctx, _j, l) => {
       if ((ctx.combat.oppHp ?? 0) > ctx.player.hp) ctx.addMult(12, l)
+    },
+  },
+  {
+    id: 'spy',
+    name: 'L’Espion',
+    rarity: 3,
+    cost: 9,
+    pvp: true,
+    copyable: false,
+    desc: () => 'Copie l’effet d’un joker au hasard de ton adversaire du round',
+  },
+  {
+    id: 'pickpocket',
+    name: 'Le Pickpocket',
+    rarity: 1,
+    cost: 5,
+    pvp: true,
+    desc: () => 'Quand tu gagnes un duel, tu voles 2 $ à ton adversaire',
+  },
+  {
+    id: 'bookmaker',
+    name: 'Le Bookmaker',
+    rarity: 2,
+    cost: 6,
+    pvp: true,
+    desc: () => 'Avant chaque duel, mise 25 % de ton or (max 10 $) : victoire = mise doublée, défaite = mise perdue',
+  },
+  {
+    id: 'vengeance',
+    name: 'La Vengeance',
+    rarity: 3,
+    cost: 8,
+    pvp: true,
+    desc: (_j, p) => `×1 Grit de plus par joueur différent qui t’a battu cette partie${p ? ` (actuel : ×${1 + p.beatenBy.length})` : ''}`,
+    onJoker: (ctx, _j, l) => ctx.xMult(1 + ctx.player.beatenBy.length, l),
+  },
+  {
+    id: 'kingHill',
+    name: 'Le Roi de la Colline',
+    rarity: 2,
+    cost: 7,
+    pvp: true,
+    desc: () => '×2 Grit si tu as le plus de PV du lobby. Tes défaites te coûtent 3 PV de plus',
+    damageTakenBonus: 3,
+    onJoker: (ctx, _j, l) => {
+      if (ctx.player.hp >= (ctx.combat.lobbyMaxHp ?? Infinity)) ctx.xMult(2, l)
+    },
+  },
+  {
+    id: 'lastBreath',
+    name: 'Le Dernier Souffle',
+    rarity: 2,
+    cost: 6,
+    pvp: true,
+    desc: () => '×3 Grit quand il te reste 20 PV ou moins',
+    onJoker: (ctx, _j, l) => {
+      if (ctx.player.hp <= 20) ctx.xMult(3, l)
+    },
+  },
+  {
+    id: 'pacifist',
+    name: 'Le Pacifiste',
+    rarity: 1,
+    cost: 4,
+    pvp: true,
+    desc: () => '+5 $ si ton duel finit à égalité ou par une victoire serrée (moins de 10 % d’écart)',
+  },
+  {
+    id: 'collector',
+    name: 'Le Collectionneur',
+    rarity: 1,
+    cost: 5,
+    pvp: true,
+    desc: () => '+1 Grit par joker différent présent dans tout le lobby',
+    onJoker: (ctx, _j, l) => ctx.addMult(ctx.combat.lobbyJokerKinds ?? 0, l),
+  },
+  {
+    id: 'saboteur',
+    name: 'Le Saboteur',
+    rarity: 2,
+    cost: 6,
+    pvp: true,
+    desc: () => 'Ton adversaire commence le duel avec 1 défausse de moins',
+  },
+  {
+    id: 'ghostHunter',
+    name: 'Le Chasseur de Fantômes',
+    rarity: 1,
+    cost: 4,
+    pvp: true,
+    desc: () => '+50 jetons par main contre un fantôme ou un mini-boss',
+    onJoker: (ctx, _j, l) => {
+      if (ctx.combat.vsGhost || ctx.combat.vsBoss) ctx.addChips(50, l)
     },
   },
 ]

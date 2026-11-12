@@ -25,6 +25,7 @@ export const ENH_NAME: Record<Enhancement, string> = {
   stone: 'Pierre',
   gold: 'Or',
   lucky: 'Chance',
+  cursed: 'Maudite',
 }
 
 export const ENH_DESC: Record<Enhancement, string> = {
@@ -36,6 +37,7 @@ export const ENH_DESC: Record<Enhancement, string> = {
   stone: '+50 jetons, sans valeur ni couleur, compte toujours',
   gold: '+3 $ si gardée en main à la fin du round',
   lucky: '1/5 : +20 Grit, 1/15 : +20 $',
+  cursed: 'Sans valeur ni couleur : ne compte jamais (Malédiction)',
 }
 
 export const EDITION_NAME: Record<Edition, string> = {
@@ -87,19 +89,20 @@ export function randomCard(rng: Rng, opts?: { faces?: boolean; aces?: boolean; n
 
 /** Jetons de base d'une carte jouée. */
 export function cardChips(c: Card): number {
+  if (c.enh === 'cursed') return 0
   if (c.enh === 'stone') return 50 + (c.extraChips ?? 0)
   const base = c.rank === 14 ? 11 : c.rank >= 11 ? 10 : c.rank
   return base + (c.enh === 'bonus' ? 30 : 0) + (c.extraChips ?? 0)
 }
 
 export function isFace(c: Card, pareidolia = false): boolean {
-  if (c.enh === 'stone') return false
+  if (c.enh === 'stone' || c.enh === 'cursed') return false
   return pareidolia || (c.rank >= 11 && c.rank <= 13)
 }
 
 /** La carte est-elle de cette couleur ? (Cartes joker = toutes, pierre = aucune, Barbouillé = paires de couleurs) */
 export function isSuit(c: Card, suit: Suit, smeared = false): boolean {
-  if (c.enh === 'stone') return false
+  if (c.enh === 'stone' || c.enh === 'cursed') return false
   if (c.enh === 'wild') return true
   if (c.suit === suit) return true
   if (smeared) {
@@ -111,6 +114,7 @@ export function isSuit(c: Card, suit: Suit, smeared = false): boolean {
 
 export function cardLabel(c: Card): string {
   if (c.enh === 'stone') return 'Pierre'
+  if (c.enh === 'cursed') return 'Maudite'
   return `${rankLabel(c.rank)}${SUIT_SYMBOL[c.suit]}`
 }
 

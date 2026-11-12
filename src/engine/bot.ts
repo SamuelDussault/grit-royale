@@ -48,7 +48,7 @@ function chooseDiscard(p: Player, cs: CombatState, best: PlayOption): Card[] {
   // garder un tirage couleur (3+ de la même couleur)
   const bySuit = new Map<string, Card[]>()
   for (const c of cs.hand) {
-    if (c.enh === 'stone') continue
+    if (c.enh === 'stone' || c.enh === 'cursed') continue
     const a = bySuit.get(c.suit) ?? []
     a.push(c)
     bySuit.set(c.suit, a)
@@ -58,7 +58,7 @@ function chooseDiscard(p: Player, cs: CombatState, best: PlayOption): Card[] {
   if (bigSuit && bigSuit.length >= 3 && (fav === 'flush' || bigSuit.length >= 4)) for (const c of bigSuit) keep.add(c)
   // garder les paires
   const byRank = new Map<number, Card[]>()
-  for (const c of cs.hand) byRank.set(c.rank, [...(byRank.get(c.rank) ?? []), c])
+  for (const c of cs.hand) if (c.enh !== 'cursed' && c.enh !== 'stone') byRank.set(c.rank, [...(byRank.get(c.rank) ?? []), c])
   for (const g of byRank.values()) if (g.length >= 2) for (const c of g) keep.add(c)
   // ne jamais jeter les cartes améliorées « en main » utiles
   for (const c of cs.hand) if (c.enh === 'steel' || c.enh === 'gold') keep.add(c)
@@ -108,13 +108,15 @@ function jokerValue(defId: string, edition?: string): number {
   return d.rarity * 4 + d.cost + (edition === 'poly' ? 6 : edition === 'holo' ? 3 : edition === 'foil' ? 2 : edition === 'negative' ? 8 : 0)
 }
 
-function botUseConsumables(p: Player, rng: Rng) {
+function botUseConsumables(p: Player, rng: Rng, others: Player[] = []) {
   for (const c of [...p.consumables]) {
     const d = getConsumable(c.defId)
     if (['hex', 'ankh'].includes(d.id) && p.jokers.length > 2) continue
     if (d.id === 'wraith' && p.gold > 15) continue
     const handCards = rng.shuffle([...p.deck]).slice(0, p.handSize)
-    const env: UseEnv = { rng, handCards, inCombat: false }
+    // malédiction : vise l'adversaire en vie qui a le plus de PV
+    const target = d.targetPlayer ? rng.shuffle([...others].filter((o) => o.id !== p.id && o.alive)).sort((a, b) => b.hp - a.hp)[0] : undefined
+    const env: UseEnv = { rng, handCards, inCombat: false, target }
     let selected: Card[] = []
     if (d.select) {
       const [, max] = d.select
@@ -161,13 +163,13 @@ function botPack(p: Player, s: PackSession, rng: Rng) {
   }
 }
 
-export function botShop(p: Player, shop: ShopState, rng: Rng, round: number) {
+export function botShop(p: Player, shop: ShopState, rng: Rng, round: number, others: Player[] = []) {
   const greed = p.bot?.greed ?? 0.5
   const reserve = round <= 3 ? 0 : Math.min(50, Math.floor(greed * 5) * 10)
   const fav = favoriteHand(p)
   const canSpend = (price: number) => p.gold - price >= reserve
 
-  botUseConsumables(p, rng)
+  botUseConsumables(p, rng, others)
 
   for (let pass = 0; pass < 4; pass++) {
     // jokers
@@ -188,7 +190,7 @@ export function botShop(p: Player, shop: ShopState, rng: Rng, round: number) {
       if (!canSpend(item.price)) continue
       const useful = item.kind !== 'planet' || item.id === PLANET_FOR[fav] || rng.chance(0.25)
       if (!useful) continue
-      if (!buy(p, item, rng).error) botUseConsumables(p, rng)
+      if (!buy(p, item, rng).error) botUseConsumables(p, rng, others)
     }
     // bon
     if (shop.voucher && !shop.voucher.sold && canSpend(shop.voucher.price) && rng.chance(0.6)) buy(p, shop.voucher, rng)
@@ -204,7 +206,7 @@ export function botShop(p: Player, shop: ShopState, rng: Rng, round: number) {
     if (wantMore && canSpend(shop.rerollCost + 5) && rng.chance(0.7)) reroll(p, shop, rng)
     else break
   }
-  botUseConsumables(p, rng)
+  botUseConsumables(p, rng, others)
 }
 
 export function pickShopItem(shop: ShopState, key: number): ShopItem | undefined {

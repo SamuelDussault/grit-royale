@@ -56,7 +56,7 @@ function findFlush(cards: Card[], need: number, smeared: boolean): Card[] | null
 }
 
 function findStraight(cards: Card[], need: number, shortcut: boolean): Card[] | null {
-  const ranked = cards.filter((c) => c.enh !== 'stone')
+  const ranked = cards.filter((c) => c.enh !== 'stone' && c.enh !== 'cursed')
   const present = new Set<number>()
   for (const c of ranked) {
     present.add(c.rank)
@@ -83,7 +83,7 @@ function findStraight(cards: Card[], need: number, shortcut: boolean): Card[] | 
 
 export function evaluateHand(cards: Card[], rules: EvalRules = {}): Evaluation {
   const need = rules.fourFingers ? 4 : 5
-  const ranked = cards.filter((c) => c.enh !== 'stone')
+  const ranked = cards.filter((c) => c.enh !== 'stone' && c.enh !== 'cursed')
   const stones = cards.filter((c) => c.enh === 'stone')
 
   const byRank = new Map<number, Card[]>()
@@ -154,7 +154,7 @@ export function evaluateHand(cards: Card[], rules: EvalRules = {}): Evaluation {
   }
   contains.add(type)
 
-  if (rules.splash) scoring = [...cards]
+  if (rules.splash) scoring = cards.filter((c) => c.enh !== 'cursed')
   else {
     for (const s of stones) if (!scoring.includes(s)) scoring.push(s)
     // garder l'ordre de la main jouée (gauche à droite)

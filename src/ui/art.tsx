@@ -80,6 +80,8 @@ function cardBg(c: Card): string {
       return 'url(#g-lucky)'
     case 'stone':
       return '#8d8a83'
+    case 'cursed':
+      return '#3b2346'
     default:
       return '#f6f1e6'
   }
@@ -91,13 +93,27 @@ const SEAL_COLOR = { gold: '#f5b83d', red: '#e84545', blue: '#3b8ff3', purple: '
 export function PlayingCardArt({ card }: { card: Card }) {
   const col = SUIT_COLOR[card.suit]
   const stone = card.enh === 'stone'
+  const cursed = card.enh === 'cursed'
   const label = rankLabel(card.rank)
   const pips = PIPS[card.rank]
   const area = { x: 17, y: 13, w: 37, h: 69 }
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="art">
       <rect x="1" y="1" width={W - 2} height={H - 2} rx="5" fill={cardBg(card)} stroke="#d6cdbb" strokeWidth="1.5" />
-      {stone ? (
+      {cursed ? (
+        <g>
+          <Px
+            rows={['..xxxxx..', '.xxxxxxx.', 'xxkxxxkxx', 'xxkxxxkxx', 'xxxxxxxxx', '.xxxkxxx.', '..x.x.x..', '..xxxxx..']}
+            pal={{ x: '#c9b6d6', k: '#3b2346' }}
+            x={W / 2 - 18}
+            y={26}
+            s={4}
+          />
+          <text x={W / 2} y="80" className="small" fill="#c9b6d6" textAnchor="middle">
+            MAUDITE
+          </text>
+        </g>
+      ) : stone ? (
         <g>
           <Px
             rows={['..xx....x..', '.xxxx..xxx.', 'xxyxxxxxxyx', 'xxxxxyxxxxx', '.xxxxxxxyx.', '..xxxx.xx..']}
@@ -464,6 +480,28 @@ export function ConsumableArt({ kind, defId }: { kind: ConsumableKind; defId: st
         <Px rows={T_ICONS[TAROT_ICON[defId]?.[0] ?? 'star']} pal={{ x: TAROT_ICON[defId]?.[1] ?? '#6b4c9a' }} x={W / 2 - 13.5} y={32.5} s={3} />
         <rect x="5" y="74" width={W - 10} height="15" rx="3" fill="#6b4c9a" />
         <text x={W / 2} y="85" className="tiny" fill="#fff6e0" textAnchor="middle">
+          {d.name}
+        </text>
+      </svg>
+    )
+  }
+  if (kind === 'curse') {
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} className="art">
+        <rect x="1" y="1" width={W - 2} height={H - 2} rx="5" fill="#2a1433" stroke="#b5179e" strokeWidth="2" />
+        <rect x="6" y="6" width={W - 12} height={H - 12} rx="2" fill="none" stroke="#7209b7" strokeWidth="1" strokeDasharray="3 2" />
+        <text x={W / 2} y="17" className="small" fill="#f72585" textAnchor="middle">
+          MALÉDICTION
+        </text>
+        <Px
+          rows={['..xxxxx..', '.xxxxxxx.', 'xxkxxxkxx', 'xxkxxxkxx', 'xxxxxxxxx', '.xxxkxxx.', '..x.x.x..', '..xxxxx..']}
+          pal={{ x: '#f1c6ff', k: '#2a1433' }}
+          x={W / 2 - 18}
+          y={24}
+          s={4}
+        />
+        <rect x="5" y="74" width={W - 10} height="15" rx="3" fill="#7209b7" />
+        <text x={W / 2} y="85" className="tiny" fill="#ffe0f7" textAnchor="middle">
           {d.name}
         </text>
       </svg>

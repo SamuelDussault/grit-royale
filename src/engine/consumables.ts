@@ -9,6 +9,8 @@ export interface UseEnv {
   /** Cartes visibles pouvant être ciblées / détruites (main en combat, ou main tirée dans un paquet). */
   handCards: Card[]
   inCombat: boolean
+  /** Joueur visé (malédictions). */
+  target?: Player
 }
 
 export interface ConsumableDef {
@@ -20,6 +22,8 @@ export interface ConsumableDef {
   select?: [number, number]
   /** Besoin d'avoir des cartes en main (ex. détruire une carte au hasard). */
   needsHand?: boolean
+  /** Se lance sur un autre joueur (malédictions). */
+  targetPlayer?: boolean
   canUse?: (p: Player, env: UseEnv) => boolean
   use: (p: Player, selected: Card[], env: UseEnv) => string
 }
@@ -496,12 +500,54 @@ const SPECTRALS: ConsumableDef[] = [
   },
 ]
 
+// ================= MALÉDICTIONS (à lancer sur un adversaire) =================
+const CURSES: ConsumableDef[] = [
+  {
+    id: 'curseCards',
+    kind: 'curse',
+    name: 'Cartes Maudites',
+    desc: 'Ajoute 3 cartes Maudites (sans valeur, ne comptent jamais) dans le paquet d’un adversaire',
+    targetPlayer: true,
+    use: (_p, _s, env) => {
+      const t = env.target!
+      for (let i = 0; i < 3; i++) t.deck.push({ id: nextUid(), rank: 2, suit: 'S', enh: 'cursed' })
+      return `3 cartes Maudites dans le paquet de ${t.name}`
+    },
+  },
+  {
+    id: 'curseFog',
+    kind: 'curse',
+    name: 'Brouillard',
+    desc: 'Un adversaire aura 1 main de moins à son prochain combat',
+    targetPlayer: true,
+    use: (_p, _s, env) => {
+      const t = env.target!
+      t.nextHandsMalus = (t.nextHandsMalus ?? 0) + 1
+      return `${t.name} aura 1 main de moins au prochain combat`
+    },
+  },
+  {
+    id: 'curseTax',
+    kind: 'curse',
+    name: 'Taxe',
+    desc: 'Un adversaire perd 4 $ et tu en gagnes 2',
+    targetPlayer: true,
+    use: (p, _s, env) => {
+      const t = env.target!
+      t.gold = Math.max(0, t.gold - 4)
+      p.gold += 2
+      return `${t.name} perd 4 $, tu gagnes 2 $`
+    },
+  },
+]
+
+export const CURSE_LIST = CURSES
 export const TAROT_LIST = TAROTS
 export const PLANET_LIST = PLANETS
 export const SPECTRAL_LIST = SPECTRALS.filter((s) => s.id !== 'soul' && s.id !== 'blackHole')
 export const RARE_SPECTRALS = SPECTRALS.filter((s) => s.id === 'soul' || s.id === 'blackHole')
 
-const ALL: Record<string, ConsumableDef> = Object.fromEntries([...TAROTS, ...PLANETS, ...SPECTRALS].map((d) => [d.id, d]))
+const ALL: Record<string, ConsumableDef> = Object.fromEntries([...TAROTS, ...PLANETS, ...SPECTRALS, ...CURSES].map((d) => [d.id, d]))
 
 export function getConsumable(id: string): ConsumableDef {
   const d = ALL[id]
@@ -510,7 +556,7 @@ export function getConsumable(id: string): ConsumableDef {
 }
 
 export function consumablePrice(kind: ConsumableKind): number {
-  return kind === 'spectral' ? 4 : 3
+  return kind === 'spectral' || kind === 'curse' ? 4 : 3
 }
 
 /** Peut-on utiliser ce consommable avec cette sélection ? Renvoie un message d'erreur ou null. */
@@ -525,6 +571,7 @@ export function useBlocker(p: Player, defId: string, selected: Card[], env: UseE
       return null
     }
   }
+  if (d.targetPlayer && (!env.target || env.target.id === p.id || !env.target.alive)) return 'Choisis un adversaire en vie'
   if ((d.select || d.needsHand) && env.handCards.length === 0) return 'Il faut des cartes en main (en combat ou dans un paquet)'
   if (d.canUse && !d.canUse(p, env)) return 'Impossible pour l’instant'
   return null

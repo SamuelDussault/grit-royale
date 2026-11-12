@@ -425,3 +425,10 @@ button, input { font-family: var(--font); }
 .order-chip.now { outline: 2px solid var(--gold); }
 .order-chip.done { opacity: 0.45; }
 .order-chip.me { color: #8fd0ff; }
+
+/* ---------- Maître du Temps / Usurier ---------- */
+.rewind-box { display: flex; flex-direction: column; align-items: center; gap: 6px; margin-top: 8px; }
+.rewind-box .btn { min-width: 240px; }
+.loan { padding: 10px 14px; margin-top: 10px; }
+.loan-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.loan-btns { display: flex; gap: 8px; }

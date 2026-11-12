@@ -959,9 +959,331 @@ const SCENES: Record<string, Scene> = {
     p.ell(38, 60, 5, 5, R, Z.top)
     p.rect(14, 44, 19, 3, R, Z.top)
   },
+  // ================= NOUVEAUX =================
+  electric: (p) => {
+    p.bg(hex('#fff3b0'), 'rays', hex('#ffe680'))
+    jester(p, { ca: C.yellow, cb: C.blue, collar: C.cyan, eyes: 'spiral', mouth: 'teeth', hair: hex('#3a2a10') })
+    for (const [x, y, f] of [[2, 10, 1], [38, 8, -1], [4, 58, 1]] as [number, number, number][])
+      p.poly([[x + 4 * f, y], [x + 7 * f, y], [x + 4 * f, y + 7], [x + 8 * f, y + 7], [x + 1 * f, y + 18], [x + 3 * f, y + 9], [x, y + 9]], C.yellow, Z.top)
+  },
+  gambler: (p) => {
+    p.bg(hex('#2f7a4f'), 'dots', hex('#28694a'))
+    jester(p, { ca: C.green, cb: C.black, collar: C.gold, hat: 'top', eyes: 'brow', mouth: 'smirk', arms: 'hold' })
+    const die = (x: number, y: number, pips: [number, number][]) => {
+      p.rect(x, y, 11, 11, C.white, Z.top)
+      for (const [a, b] of pips) p.rect(x + a, y + b, 2, 2, C.red, Z.detail, true)
+    }
+    die(29, 60, [[2, 2], [4.5, 4.5], [7, 7]])
+    die(6, 64, [[2, 2], [7, 2], [2, 7], [7, 7]])
+  },
+  brokenMirror: (p) => {
+    p.bg(hex('#e6ddf5'), 'rays', hex('#dacdf0'))
+    p.ell(23.5, 38, 19, 27, hex('#c8962e'), Z.mid)
+    p.ell(23.5, 38, 15, 23, hex('#bfe3f5'), Z.front)
+    miniJester(p, 23.5, 34, C.red, C.blue, C.clown, 'o')
+    const crack: [number, number][] = [[23, 16], [20, 27], [27, 35], [18, 46], [25, 58]]
+    for (let i = 0; i + 1 < crack.length; i++) p.line(crack[i][0], crack[i][1], crack[i + 1][0], crack[i + 1][1], C.pure, Z.detail)
+    p.line(27, 35, 36, 30, C.pure, Z.detail)
+    p.line(18, 46, 10, 50, C.pure, Z.detail)
+    p.poly([[30, 70], [35, 66], [37, 73]], hex('#bfe3f5'), Z.top)
+    p.poly([[8, 72], [13, 69], [12, 76]], hex('#bfe3f5'), Z.top)
+  },
+  rusty: (p) => {
+    p.bg(hex('#f0dcc6'), 'stripes', hex('#e8cfb4'))
+    jester(p, { ca: hex('#b5582a'), cb: hex('#7a4a2b'), collar: hex('#c98a5a'), face: hex('#d9b48f'), eyes: 'sleepy', mouth: 'flat', hair: hex('#5a3a20') })
+    for (const [x, y, r] of [[16, 30, 1.5], [31, 42, 1.2], [20, 46, 1], [28, 27, 1], [12, 60, 1.6], [35, 64, 1.3]] as [number, number, number][])
+      p.ell(x, y, r, r, hex('#9a4a1e'), Z.detail, true)
+  },
+  swissKnife: (p) => {
+    p.bg(hex('#ffd6d6'), 'dots', hex('#ffbcbc'))
+    p.poly([[23, 34], [27, 34], [44, 6], [41, 4]], C.lgrey, Z.back)
+    p.poly([[21, 36], [24, 36], [8, 8], [4, 10]], C.lgrey, Z.back)
+    p.poly([[22, 34], [25, 34], [24, 4], [21, 6]], C.grey, Z.back)
+    p.line(10, 12, 14, 14, C.white, Z.detail)
+    p.rect(9, 36, 29, 40, R, Z.front)
+    p.ell(23.5, 36, 14.5, 4, R, Z.front)
+    p.ell(23.5, 76, 14.5, 4, R, Z.front)
+    p.rect(21, 48, 5, 15, C.pure, Z.top, true)
+    p.rect(16, 53, 15, 5, C.pure, Z.top, true)
+  },
+  greenBill: (p) => {
+    p.bg(hex('#e5f2d9'), 'flat')
+    for (const [dy, c] of [[14, hex('#5f9a4a')], [7, hex('#6fae58')], [0, hex('#84c46a')]] as [number, RGB][]) {
+      p.rect(2, 22 + dy, 43, 24, c, Z.mid + (dy === 0 ? 2 : 0))
+    }
+    p.rect(4, 24, 39, 20, hex('#a6dc8a'), Z.top, true)
+    p.ell(23.5, 34, 7, 7, hex('#84c46a'), Z.top, true)
+    p.text('$', 22, 32, hex('#2f5a22'), Z.detail)
+    p.text('10', 6, 26, hex('#2f5a22'), Z.detail)
+    p.text('10', 34, 38, hex('#2f5a22'), Z.detail)
+    fan(p, [['10', 'S'], ['10', 'H'], ['10', 'D']], 60, 12)
+  },
+  sick: (p) => {
+    p.bg(hex('#dfeccf'), 'dots', hex('#cfe2b8'))
+    jester(p, { ca: hex('#7fae5a'), cb: hex('#c9d98a'), face: hex('#d4e8bc'), eyes: 'tear', mouth: 'frown', hat: 'beanie' })
+    p.line(30, 47, 40, 41, C.white, Z.top, 2)
+    p.ell(30, 47, 1.6, 1.6, C.red, Z.top)
+    p.text('+5', 34, 70, C.red, Z.detail, 2)
+  },
+  holeySock: (p) => {
+    p.bg(hex('#fdeed8'), 'stripes', hex('#f8e2c4'))
+    const sock = hex('#7aa8d8')
+    p.rect(14, 2, 15, 44, sock, Z.mid)
+    for (let y = 8; y < 44; y += 8) p.rect(14, y, 15, 3, C.pure, Z.mid, true)
+    p.bez([21, 42], [22, 60], [38, 60], 8, 7, sock, Z.front)
+    p.ell(36, 58, 4, 3.5, hex('#3a2a20'), Z.top, true)
+    p.ell(37, 58, 2.5, 2.2, C.skin, Z.detail)
+    p.rect(13, 0, 17, 4, C.red, Z.top)
+    fan(p, [['2', 'C'], ['3', 'H']], 64, 12)
+  },
+  braggart: (p) => {
+    p.bg(hex('#fff0c2'), 'rays', hex('#ffe08a'))
+    jester(p, { ca: C.violet, cb: C.gold, collar: C.yellow, hat: 'crown', eyes: 'star', mouth: 'grin', arms: 'up' })
+    p.ell(7, 66, 5, 6, hex('#e8dccb'), Z.top)
+    p.text('0', 6, 64, C.ink, Z.detail)
+    p.text('+30', 26, 72, C.blue, Z.detail, 2)
+  },
+  cashier: (p) => {
+    p.bg(hex('#d9ecf7'), 'grid', hex('#c9e0ef'))
+    p.rect(4, 30, 39, 28, C.dgrey, Z.mid)
+    p.rect(10, 16, 27, 12, C.black, Z.front)
+    p.rect(12, 18, 23, 8, hex('#3c6a3a'), Z.top, true)
+    p.text('+2$', 15, 20, hex('#9bff8a'), Z.detail)
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) p.rect(8 + c * 8, 34 + r * 6, 6, 4, C.lgrey, Z.top)
+    p.rect(2, 58, 43, 8, C.grey, Z.front)
+    p.rect(18, 61, 11, 2, C.black, Z.detail, true)
+    p.coin(10, 72, 4)
+    p.coin(24, 75, 3)
+    p.coin(36, 72, 4)
+  },
+  string: (p) => {
+    p.bg(hex('#ffe3ea'), 'dots', hex('#ffc9d6'))
+    p.ell(23.5, 28, 15, 15, hex('#e8506a'), Z.mid)
+    for (let k = -2; k <= 2; k++) p.bez([12, 20 + k * 5], [23.5, 14 + k * 6], [35, 22 + k * 5], 0.5, 0.5, hex('#b82e46'), Z.detail)
+    p.bez([33, 38], [44, 50], [30, 56], 0.8, 0.8, hex('#e8506a'), Z.top)
+    fan(p, [['2', 'H'], ['5', 'H'], ['8', 'H'], ['J', 'H'], ['A', 'H']], 60, 8)
+  },
+  brokenHourglass: (p) => {
+    p.bg(hex('#f3e2c7'), 'rays', hex('#edd5b0'))
+    p.rect(8, 6, 31, 5, hex('#8b5a2b'), Z.front)
+    p.rect(8, 66, 31, 5, hex('#8b5a2b'), Z.front)
+    p.rect(10, 11, 3, 55, hex('#a8743e'), Z.front)
+    p.rect(34, 11, 3, 55, hex('#a8743e'), Z.front)
+    p.poly([[14, 11], [33, 11], [25, 38], [22, 38]], hex('#d6eef8'), Z.mid)
+    p.poly([[22, 39], [25, 39], [33, 66], [14, 66]], hex('#d6eef8'), Z.mid)
+    p.poly([[17, 15], [30, 15], [24.5, 30], [22.5, 30]], C.gold, Z.top, true)
+    p.poly([[23.5, 50], [31, 65], [16, 65]], C.gold, Z.top, true)
+    p.line(19, 44, 15, 54, C.pure, Z.detail)
+    p.line(19, 44, 22, 50, C.pure, Z.detail)
+    for (const [x, y] of [[38, 46], [40, 52], [41, 58], [39, 63]]) p.set(x, y, C.gold, Z.detail)
+    p.text('1/2', 2, 74, C.ink, Z.detail)
+  },
+  usurer: (p) => {
+    p.bg(hex('#e8e1cf'), 'stripes', hex('#ddd4bd'))
+    jester(p, { ca: C.navy, cb: C.gold, collar: C.white, hat: 'top', eyes: 'dollar', mouth: 'fangs', arms: 'hold' })
+    p.ell(30, 33, 3.5, 3.5, hex('#d8eef8'), Z.detail, true)
+    p.line(33, 35, 35, 44, C.gold, Z.detail)
+    p.ell(37, 66, 8, 8, hex('#c9a46a'), Z.top)
+    p.rect(34, 56, 6, 4, hex('#a8843e'), Z.top)
+    p.text('$', 35, 64, C.dbrown, Z.detail)
+  },
+  voodoo: (p) => {
+    p.bg(hex('#3a2340'), 'flat')
+    p.ell(23.5, 22, 12, 12, hex('#c9a46a'), Z.mid)
+    p.rect(13, 32, 21, 24, hex('#c9a46a'), Z.mid)
+    p.bez([13, 36], [4, 42], [3, 50], 3, 3, hex('#c9a46a'), Z.mid)
+    p.bez([34, 36], [43, 42], [44, 50], 3, 3, hex('#c9a46a'), Z.mid)
+    p.rect(15, 56, 6, 14, hex('#c9a46a'), Z.mid)
+    p.rect(26, 56, 6, 14, hex('#c9a46a'), Z.mid)
+    for (const x of [18, 28]) {
+      p.line(x - 2, 18, x + 2, 22, C.ink, Z.detail)
+      p.line(x + 2, 18, x - 2, 22, C.ink, Z.detail)
+    }
+    p.line(18, 28, 29, 28, C.ink, Z.detail)
+    for (let x = 19; x < 29; x += 2) p.set(x, 27, C.ink, Z.detail)
+    p.suit('H', 23.5, 42, 1, C.red, Z.top)
+    for (const [x0, y0, x1, y1, c] of [[30, 38, 42, 30, R], [16, 48, 6, 40, C.cyan], [23, 12, 26, 2, C.yellow]] as [number, number, number, number, RGB][]) {
+      p.line(x0, y0, x1, y1, C.lgrey, Z.top)
+      p.ell(x1, y1, 1.8, 1.8, c, Z.top)
+    }
+  },
+  lead: (p) => {
+    p.bg(hex('#d6d9e0'), 'grid', hex('#c8ccd6'))
+    jester(p, { ca: C.dgrey, cb: C.grey, collar: C.lgrey, face: hex('#c9ccd4'), hat: 'helmet', eyes: 'sleepy', mouth: 'flat', hair: C.black })
+    p.rect(30, 62, 14, 12, C.dgrey, Z.top)
+    p.text('PB', 32, 66, C.lgrey, Z.detail)
+  },
+  megalith: (p) => {
+    p.bg(hex('#f6c27a'), 'gradient', hex('#e57b5a'))
+    p.ell(23.5, 92, 44, 22, hex('#5f8a4a'), Z.back)
+    p.poly([[13, 70], [15, 10], [23, 4], [32, 10], [34, 70]], hex('#8a8f9c'), Z.front)
+    for (const [x, y] of [[18, 22], [26, 30], [20, 44], [28, 52]]) p.line(x, y, x + 3, y + 3, hex('#6a6f7c'), Z.detail)
+    p.poly([[2, 72], [3, 48], [8, 44], [11, 72]], hex('#7a7f8c'), Z.mid)
+    p.poly([[36, 72], [38, 52], [43, 50], [45, 72]], hex('#7a7f8c'), Z.mid)
+    p.text('+50', 13, 74, C.pure, Z.detail, 2)
+  },
+  impostor: (p) => {
+    p.bg(hex('#e4d8f2'), 'rays', hex('#d6c6ec'))
+    jester(p, { ca: C.purple, cb: C.black, collar: C.violet, hat: 'tricorne', eyes: 'mask', mouth: 'smirk', arms: 'hold' })
+    p.ell(37, 64, 7, 8, C.clown, Z.top)
+    p.ell(34.5, 62, 1.3, 1.6, C.ink, Z.detail, true)
+    p.ell(39.5, 62, 1.3, 1.6, C.ink, Z.detail, true)
+    p.line(34, 67, 40, 67, C.red, Z.detail)
+    p.line(37, 72, 37, 78, C.brown, Z.top)
+  },
+  doubleEdge: (p) => {
+    p.bg(hex('#3a1a22'), 'rays', hex('#4a2028'))
+    p.poly([[21, 40], [26, 40], [26, 4], [23.5, 0], [21, 4]], C.lgrey, Z.mid)
+    p.poly([[21, 44], [26, 44], [26, 76], [23.5, 81], [21, 76]], C.lgrey, Z.mid)
+    p.line(23.5, 4, 23.5, 38, C.pure, Z.detail)
+    p.rect(12, 39, 23, 6, C.gold, Z.front)
+    p.ell(23.5, 42, 3, 3, C.red, Z.top)
+    p.text('+8', 2, 8, C.yellow, Z.detail, 2)
+    p.text('+4', 34, 66, C.red, Z.detail, 2)
+  },
+  catalyst: (p) => {
+    p.bg(hex('#d8f2e8'), 'dots', hex('#bfe8d8'))
+    p.rect(19, 6, 9, 22, hex('#e8f6fb'), Z.mid)
+    p.poly([[19, 26], [28, 26], [42, 66], [5, 66]], hex('#e8f6fb'), Z.mid)
+    p.poly([[13, 46], [34, 46], [41, 65], [6, 65]], hex('#4cd17a'), Z.front)
+    p.rect(17, 4, 13, 4, hex('#c9b48a'), Z.front)
+    for (const [x, y, r] of [[18, 54, 2], [27, 58, 1.5], [23, 50, 1.2], [31, 52, 1]] as [number, number, number][]) p.ell(x, y, r, r, hex('#b8ffd0'), Z.detail, true)
+    for (const [x, y, r] of [[24, 0, 2], [30, -2, 1.5], [18, 2, 1.2]] as [number, number, number][]) p.ell(x, y, r, r, hex('#8aeab0'), Z.top)
+    p.text('×0.1', 8, 72, C.red, Z.detail)
+  },
+  alchemist: (p) => {
+    p.bg(hex('#2b2140'), 'stars', hex('#a89bd0'))
+    jester(p, { ca: C.violet, cb: C.navy, collar: C.gold, hat: 'hood', eyes: 'big', mouth: 'o', arms: 'hold' })
+    p.rect(29, 56, 13, 18, C.gold, Z.top)
+    p.text('A', 31, 58, C.dbrown, Z.detail)
+    p.suit('D', 35.5, 67, 1, C.dbrown, Z.detail)
+    p.sparkle(43, 54)
+    p.sparkle(27, 52)
+  },
+  bodyguard: (p) => {
+    p.bg(hex('#cfd8e6'), 'stripes', hex('#c2ccdc'))
+    jester(p, { ca: C.black, cb: C.black, collar: C.white, hat: 'none', eyes: 'mask', mouth: 'flat', hair: C.black, nose: false })
+    p.line(36, 30, 39, 40, C.black, Z.detail)
+    p.ell(39, 41, 1, 1.5, C.black, Z.detail, true)
+    p.poly([[4, 54], [16, 54], [16, 66], [10, 74], [4, 66]], C.blue, Z.top)
+    p.text('5', 8, 58, C.pure, Z.detail)
+  },
+  leakyPurse: (p) => {
+    p.bg(hex('#f3e6cf'), 'dots', hex('#e9d7b7'))
+    p.ell(23.5, 36, 16, 18, hex('#a8743e'), Z.mid)
+    p.poly([[16, 18], [31, 18], [28, 10], [19, 10]], hex('#a8743e'), Z.mid)
+    p.bez([16, 19], [23.5, 22], [31, 19], 1.2, 1.2, hex('#5e3b1c'), Z.top)
+    p.ell(20, 50, 3, 2, hex('#3a2410'), Z.top, true)
+    p.ell(30, 42, 2, 2, hex('#3a2410'), Z.top, true)
+    p.coin(20, 60, 3)
+    p.coin(22, 72, 3)
+    p.coin(31, 52, 2)
+    p.suit('D', 38, 72, 2, C.suitRed, Z.top)
+  },
+  wheelInv: (p) => {
+    p.bg(hex('#26304a'), 'rays', hex('#2e3a58'))
+    const cols = [C.red, C.gold, C.blue, C.lgrey, C.green, C.violet, C.orange, C.cyan]
+    for (let i = 0; i < 8; i++) {
+      const a0 = (i / 8) * Math.PI * 2
+      const a1 = ((i + 1) / 8) * Math.PI * 2
+      p.poly([[23.5, 38], [23.5 + Math.cos(a0) * 19, 38 + Math.sin(a0) * 19], [23.5 + Math.cos((a0 + a1) / 2) * 20, 38 + Math.sin((a0 + a1) / 2) * 20], [23.5 + Math.cos(a1) * 19, 38 + Math.sin(a1) * 19]], cols[i], Z.mid, true)
+    }
+    p.ell(23.5, 38, 4, 4, C.gold, Z.front)
+    p.poly([[19, 64], [28, 64], [23.5, 56]], C.pure, Z.top)
+    p.text('1/3', 18, 70, C.yellow, Z.detail)
+  },
+  timeMaster: (p) => {
+    p.bg(hex('#18213a'), 'stars', hex('#9fb4e0'))
+    p.ell(23.5, 36, 20, 20, C.gold, Z.mid)
+    p.ell(23.5, 36, 17, 17, hex('#f6efdc'), Z.front)
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2
+      p.set(23.5 + Math.cos(a) * 14, 36 + Math.sin(a) * 14, C.ink, Z.detail)
+    }
+    p.line(23.5, 36, 23.5, 25, C.ink, Z.detail, 2)
+    p.line(23.5, 36, 15, 40, C.ink, Z.detail, 2)
+    p.bez([40, 18], [46, 36], [38, 52], 1.4, 1.4, C.cyan, Z.top)
+    p.poly([[33, 50], [41, 48], [38, 56]], C.cyan, Z.top)
+    p.text('REPLAY', 12, 66, C.cyan, Z.detail)
+  },
+  devilPact: (p) => {
+    p.bg(hex('#3a0d14'), 'rays', hex('#4d1119'))
+    jester(p, { ca: C.darkred, cb: C.black, collar: C.red, hat: 'horns2', face: hex('#f0b0a0'), eyes: 'angry', mouth: 'fangs', arms: 'hold' })
+    p.rect(28, 58, 15, 18, hex('#f3e2c0'), Z.top)
+    for (let y = 61; y < 70; y += 3) p.line(30, y, 40, y, C.dgrey, Z.detail)
+    p.line(30, 72, 38, 72, C.red, Z.detail)
+    p.text('-10', 2, 2, C.yellow, Z.detail, 2)
+  },
+  strategist: (p) => {
+    p.bg(hex('#e9e2d0'), 'grid', hex('#d9cfb4'))
+    jester(p, { ca: C.navy, cb: C.white, collar: C.lgrey, hat: 'mortar', eyes: 'brow', mouth: 'smirk', arms: 'hold' })
+    p.rect(30, 70, 12, 4, C.black, Z.top)
+    p.rect(32, 60, 8, 10, C.black, Z.top)
+    p.ell(36, 57, 4, 3, C.black, Z.top)
+    p.line(36, 50, 36, 54, C.black, Z.top)
+    p.line(34, 52, 38, 52, C.black, Z.top)
+  },
+  divineMirror: (p) => {
+    p.bg(hex('#fff7da'), 'rays', hex('#ffeeb0'))
+    p.poly([[4, 30], [-4, 18], [2, 40], [10, 38]], C.pure, Z.back)
+    p.poly([[43, 30], [51, 18], [45, 40], [37, 38]], C.pure, Z.back)
+    p.ell(23.5, 40, 15, 22, C.gold, Z.mid)
+    p.ell(23.5, 40, 12, 19, hex('#e2f4ff'), Z.front)
+    p.ell(23.5, 12, 10, 3, C.yellow, Z.top)
+    p.ell(23.5, 12, 7, 1.5, hex('#fff7da'), Z.top, true)
+    p.line(16, 30, 20, 26, C.pure, Z.detail)
+    p.line(16, 34, 24, 26, C.pure, Z.detail)
+    p.text('1/2', 17, 70, C.red, Z.detail, 1)
+  },
+  gravedigger: (p) => {
+    p.bg(hex('#1f2638'), 'stars', hex('#8a9cc4'))
+    p.ell(38, 10, 5, 5, hex('#f3ecc8'), Z.mid)
+    p.ell(23.5, 88, 40, 18, hex('#3d4a2e'), Z.back)
+    p.rect(12, 26, 23, 44, C.grey, Z.mid)
+    p.ell(23.5, 26, 11.5, 8, C.grey, Z.mid)
+    p.text('RIP', 18, 28, C.ink, Z.detail)
+    p.card(18, 40, 'K', 'S', Z.top)
+    p.line(40, 30, 40, 70, C.brown, Z.top, 2)
+    p.poly([[36, 70], [44, 70], [43, 78], [37, 78]], C.lgrey, Z.top)
+    p.text('+50', 2, 72, C.cyan, Z.detail)
+  },
+  champagne: (p) => {
+    p.bg(hex('#fdf2d0'), 'dots', hex('#f6e2a4'))
+    p.rect(17, 34, 14, 42, hex('#2f6a3a'), Z.mid)
+    p.poly([[17, 34], [31, 34], [27, 20], [21, 20]], hex('#2f6a3a'), Z.mid)
+    p.rect(20, 12, 8, 10, C.gold, Z.front)
+    p.rect(18, 48, 12, 14, hex('#f3e2c0'), Z.front)
+    p.text('×4', 19, 52, C.red, Z.detail)
+    p.ell(30, 3, 3, 4, hex('#c9a46a'), Z.top)
+    for (const [x, y, r] of [[14, 8, 1.5], [36, 12, 1.2], [10, 18, 1], [38, 22, 1.4], [24, 6, 1]] as [number, number, number][]) p.ell(x, y, r, r, hex('#fff2b0'), Z.top)
+  },
+  promethee: (p) => {
+    p.bg(hex('#1e1420'), 'rays', hex('#2a1a28'))
+    p.poly([[20, 40], [27, 40], [25, 78], [22, 78]], hex('#8b5a2b'), Z.mid)
+    p.rect(17, 36, 13, 6, C.gold, Z.front)
+    p.ell(23.5, 24, 9, 14, C.orange, Z.front)
+    p.ell(23.5, 28, 6, 9, C.yellow, Z.top)
+    p.ell(23.5, 31, 3, 5, C.pure, Z.detail, true)
+    for (const x of [6, 41]) for (let y = 46; y < 76; y += 5) p.ell(x, y, 2.5, 2, C.grey, Z.mid)
+    p.text('×0.5', 15, 2, C.yellow, Z.detail)
+  },
+  pandora: (p) => {
+    p.bg(hex('#2a1f3a'), 'rays', hex('#3a2a50'))
+    p.poly([[6, 40], [41, 40], [37, 30], [10, 30]], hex('#fff1a8'), Z.back)
+    p.rect(6, 46, 35, 24, hex('#7a3a8a'), Z.mid)
+    p.rect(6, 52, 35, 3, C.gold, Z.front)
+    p.rect(21, 50, 5, 8, C.gold, Z.top)
+    p.poly([[4, 44], [43, 44], [40, 30], [8, 34]], hex('#8e4aa0'), Z.front)
+    p.card(8, 10, 'K', 'H', Z.top)
+    p.card(26, 4, 'Q', 'S', Z.top)
+    p.card(17, 18, 'J', 'D', Z.top)
+    p.sparkle(40, 20, C.yellow)
+    p.sparkle(5, 26, C.yellow)
+    p.text('15', 18, 74, C.yellow, Z.detail, 2)
+  },
 }
 
-const KEEP_BG = new Set(['pickpocket', 'vengeance', 'kingHill', 'lastBreath', 'saboteur', 'ghostHunter', 'supernova', 'constellation', 'rocket', 'toTheMoon', 'shootMoon', 'campfire', 'hack', 'summit', 'business', 'drivers', 'rideBus', 'scary', 'sock', 'golden', 'steelJoker', 'hologram', 'vampire', 'blueprint', 'dusk', 'hotStreak', 'canio', 'chicot', 'triboulet', 'wrathful', 'cardSharp', 'stencil', 'glassJoker'])
+const KEEP_BG = new Set(['megalith', 'wheelInv', 'timeMaster', 'devilPact', 'gravedigger', 'promethee', 'pandora', 'voodoo', 'doubleEdge', 'alchemist', 'greenBill', 'pickpocket', 'vengeance', 'kingHill', 'lastBreath', 'saboteur', 'ghostHunter', 'supernova', 'constellation', 'rocket', 'toTheMoon', 'shootMoon', 'campfire', 'hack', 'summit', 'business', 'drivers', 'rideBus', 'scary', 'sock', 'golden', 'steelJoker', 'hologram', 'vampire', 'blueprint', 'dusk', 'hotStreak', 'canio', 'chicot', 'triboulet', 'wrathful', 'cardSharp', 'stencil', 'glassJoker'])
 
 /** Dessine la scène d'un joker (sans la convertir en image) — utile pour les tests. */
 export function paintJoker(defId: string): Painter | null {

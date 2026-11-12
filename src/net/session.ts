@@ -4,7 +4,7 @@
 // via PeerJS) : aucun serveur à héberger, le service gratuit de PeerJS ne sert qu'à se trouver.
 import Peer, { type DataConnection } from 'peerjs'
 import { applyAction, type Action, type ActionResult } from '../engine/actions'
-import { checkTimeout, newGame, newLobby, seatHuman, unseatHuman, type GameState } from '../engine/game'
+import { checkTimeout, newGame, personalDeadline, newLobby, seatHuman, unseatHuman, type GameState } from '../engine/game'
 
 export type Mode = 'solo' | 'host' | 'guest'
 
@@ -44,7 +44,8 @@ export class Session {
 
   /** Temps restant (ms) avant la fin de la phase, ou null s'il n'y a pas de minuterie. */
   remaining(): number | null {
-    const d = this.gs?.deadline
+    if (!this.gs) return null
+    const d = personalDeadline(this.gs, this.meId)
     if (!d) return null
     return Math.max(0, d - (Date.now() - this.skew))
   }

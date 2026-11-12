@@ -1,8 +1,8 @@
 import type { Card, ConsumableKind, Edition, Enhancement, HandType, JokerInst, Player, Seal, Suit } from './types'
 import { cloneCard, randomCard, SUIT_PLURAL, SUITS } from './cards'
 import { HAND_TYPES, HANDS } from './hands'
-import { getJoker, JOKER_LIST, sellValue } from './jokers'
-import { nextUid, type Rng } from './rng'
+import { getJoker, JOKER_LIST, jokersGone, sellValue } from './jokers'
+import { nextUid, Rng } from './rng'
 
 export interface UseEnv {
   rng: Rng
@@ -50,9 +50,14 @@ export function jokerRoom(p: Player, j?: JokerInst): boolean {
   return p.jokers.filter((x) => x.edition !== 'negative').length < p.maxJokers
 }
 
-export function addJoker(p: Player, j: JokerInst): boolean {
+/** Dernier message d'un joker à l'arrivée (Pacte avec le Diable, Pandore). */
+export let lastAcquireMsg: string | undefined
+
+export function addJoker(p: Player, j: JokerInst, rng?: Rng): boolean {
   if (!jokerRoom(p, j)) return false
   p.jokers.push(j)
+  const r = getJoker(j.defId).onAcquire?.(p, j, rng ?? new Rng(Date.now() % 1e9))
+  lastAcquireMsg = r || undefined
   return true
 }
 
@@ -75,6 +80,8 @@ export function addCardToDeck(p: Player, c: Card, env?: UseEnv) {
 }
 
 /** Détruit des cartes (paquet + main). Fait évoluer Canio / Joker de Verre au besoin. */
+export const ENH_LIST: Enhancement[] = ['bonus', 'mult', 'wild', 'glass', 'steel', 'stone', 'gold', 'lucky', 'cursed']
+
 export function destroyCards(p: Player, cards: Card[], env?: UseEnv) {
   const ids = new Set(cards.map((c) => c.id))
   p.deck = p.deck.filter((c) => !ids.has(c.id))
@@ -86,6 +93,14 @@ export function destroyCards(p: Player, cards: Card[], env?: UseEnv) {
   for (const j of p.jokers) {
     if (j.defId === 'canio' && faces) j.state.x = (j.state.x ?? 1) + faces
     if (j.defId === 'glassJoker' && glass) j.state.x = (j.state.x ?? 1) + 0.75 * glass
+    if (j.defId === 'catalyst' && cards.length) j.state.x = (j.state.x ?? 1) + 0.1 * cards.length
+    // Le Fossoyeur garde la première carte détruite
+    if (j.defId === 'gravedigger' && !j.state.rank && cards.length) {
+      const c = cards[0]
+      j.state.rank = c.rank
+      j.state.suit = SUITS.indexOf(c.suit)
+      j.state.enh = c.enh ? ENH_LIST.indexOf(c.enh) + 1 : 0
+    }
   }
   p.stats.glassBroken += glass
 }
@@ -273,8 +288,8 @@ const TAROTS: ConsumableDef[] = [
     canUse: (p) => jokerRoom(p),
     use: (p, _s, env) => {
       const j = newJoker(randomJokerId(env.rng, undefined, p.jokers.map((x) => x.defId)))
-      addJoker(p, j)
-      return `Nouveau joker : ${getJoker(j.defId).name}`
+      addJoker(p, j, env.rng)
+      return `Nouveau joker : ${getJoker(j.defId).name}${lastAcquireMsg ? ` · ${lastAcquireMsg}` : ''}`
     },
   },
 ]
@@ -384,9 +399,9 @@ const SPECTRALS: ConsumableDef[] = [
     canUse: (p) => jokerRoom(p),
     use: (p, _s, env) => {
       const j = newJoker(randomJokerId(env.rng, 3, p.jokers.map((x) => x.defId)))
-      addJoker(p, j)
+      addJoker(p, j, env.rng)
       p.gold = 0
-      return `Nouveau joker rare : ${getJoker(j.defId).name}`
+      return `Nouveau joker rare : ${getJoker(j.defId).name}${lastAcquireMsg ? ` · ${lastAcquireMsg}` : ''}`
     },
   },
   {
@@ -448,7 +463,9 @@ const SPECTRALS: ConsumableDef[] = [
     use: (p, _s, env) => {
       const keep = env.rng.pick(p.jokers)
       const copy: JokerInst = { ...keep, uid: nextUid(), state: { ...keep.state }, edition: keep.edition === 'negative' ? undefined : keep.edition }
+      const gone = p.jokers.length - 1
       p.jokers = [keep, copy]
+      jokersGone(p, gone)
       return `${getJoker(keep.defId).name} ×2`
     },
   },
@@ -461,7 +478,9 @@ const SPECTRALS: ConsumableDef[] = [
     use: (p, _s, env) => {
       const keep = env.rng.pick(p.jokers)
       keep.edition = 'poly'
+      const gone = p.jokers.length - 1
       p.jokers = [keep]
+      jokersGone(p, gone)
       return `${getJoker(keep.defId).name} devient Polychrome`
     },
   },
@@ -494,8 +513,8 @@ const SPECTRALS: ConsumableDef[] = [
     canUse: (p) => jokerRoom(p),
     use: (p, _s, env) => {
       const j = newJoker(randomJokerId(env.rng, 4, p.jokers.map((x) => x.defId)))
-      addJoker(p, j)
-      return `Joker légendaire : ${getJoker(j.defId).name} !`
+      addJoker(p, j, env.rng)
+      return `Joker légendaire : ${getJoker(j.defId).name} !${lastAcquireMsg ? ` ${lastAcquireMsg}` : ''}`
     },
   },
 ]

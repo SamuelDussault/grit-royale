@@ -39,11 +39,16 @@ export function playHand(p: Player, cs: CombatState, selectedIds: number[], rng:
   p.gold += res.money
   cs.handsLeft--
 
+  // Joker Électrique : une Suite coûte aussi une défausse
+  if (res.containsStraight) {
+    const n = p.jokers.filter((j) => j.defId === 'electric').length
+    cs.discardsLeft = Math.max(0, cs.discardsLeft - n)
+  }
   cs.hand = held
   if (res.destroyed.length) destroyCards(p, res.destroyed)
   if (cs.handsLeft <= 0) cs.finished = true
   else {
-    draw(p, cs)
+    if (!noDraw(p)) draw(p, cs)
     if (cs.hand.length === 0) cs.finished = true
   }
   return res
@@ -65,8 +70,14 @@ export function discardCards(p: Player, cs: CombatState, selectedIds: number[], 
   if (money) msgs.push(`+${money} $`)
   cs.hand = cs.hand.filter((c) => !selectedIds.includes(c.id))
   cs.discardsLeft--
-  draw(p, cs)
+  if (!noDraw(p)) draw(p, cs)
+  else if (cs.hand.length === 0) cs.finished = true
   return { money, msgs }
+}
+
+/** Mégalithe : plus de pioche pendant le combat. */
+function noDraw(p: Player): boolean {
+  return p.jokers.some((j) => j.defId === 'megalith')
 }
 
 /** Cartes encore en main à la fin du combat (pour Or / Sceau bleu). */

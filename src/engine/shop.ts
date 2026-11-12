@@ -3,6 +3,7 @@ import { randomCard } from './cards'
 import {
   addCardToDeck,
   addJoker,
+  lastAcquireMsg,
   applyConsumable,
   consumablePrice,
   CURSE_LIST,
@@ -18,7 +19,7 @@ import {
   useBlocker,
   type UseEnv,
 } from './consumables'
-import { getJoker, sellValue } from './jokers'
+import { getJoker, jokersGone, sellValue } from './jokers'
 import type { Rng } from './rng'
 
 // ================= BONS (vouchers) =================
@@ -227,9 +228,9 @@ export function buy(
     const j = newJoker(item.id, item.edition)
     if (!jokerRoom(p, j)) return { error: `Plus de place pour un joker (max ${p.maxJokers})` }
     p.gold -= item.price
-    addJoker(p, j)
+    addJoker(p, j, rng)
     item.sold = true
-    return { msg: `${getJoker(item.id).name} acheté` }
+    return { msg: lastAcquireMsg ?? `${getJoker(item.id).name} acheté` }
   }
   if (item.kind === 'tarot' || item.kind === 'planet' || item.kind === 'spectral') {
     if (!giveConsumable(p, item.kind, item.id)) return { error: 'Emplacements de consommables pleins' }
@@ -293,8 +294,8 @@ export function pickPackOption(p: Player, s: PackSession, index: number, selecte
   let msg = ''
   if (opt.kind === 'joker') {
     const j = newJoker(opt.id!, opt.edition)
-    if (!addJoker(p, j)) return { error: `Plus de place pour un joker (max ${p.maxJokers})` }
-    msg = `${getJoker(opt.id!).name} obtenu`
+    if (!addJoker(p, j, rng)) return { error: `Plus de place pour un joker (max ${p.maxJokers})` }
+    msg = lastAcquireMsg ?? `${getJoker(opt.id!).name} obtenu`
   } else if (opt.kind === 'card') {
     addCardToDeck(p, opt.card!)
     msg = 'Carte ajoutée au paquet'
@@ -314,6 +315,7 @@ export function sellJoker(p: Player, uid: number): number {
   if (!j) return 0
   const v = sellValue(j)
   p.jokers = p.jokers.filter((x) => x !== j)
+  jokersGone(p)
   p.gold += v
   p.stats.cardsSold++
   for (const o of p.jokers) getJoker(o.defId).onSellAny?.(p, o)

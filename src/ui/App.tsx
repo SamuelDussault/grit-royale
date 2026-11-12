@@ -151,6 +151,17 @@ export default function App() {
     const t = setTimeout(() => {
       setAnim(null)
       force()
+      const cs = session?.gs?.combats[meId]
+      // Le Maître du Temps : on laisse le choix de rejouer la dernière main avant le verdict
+      if (cs?.finished && cs.canRewind && !cs.rewindUsed) return
+      showVerdict()
+    }, 900)
+    return () => clearTimeout(t)
+  }, [anim]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Fin du combat : tampon Victoire / Défaite / Boss… puis on passe à la suite. */
+  function showVerdict() {
+    {
       const g = session?.gs
       const cs = g?.combats[meId]
       if (g && cs?.finished && g.boss) {
@@ -181,9 +192,8 @@ export default function App() {
           }, 650)
         }
       }
-    }, 900)
-    return () => clearTimeout(t)
-  }, [anim]) // eslint-disable-line react-hooks/exhaustive-deps
+    }
+  }
 
   // ---------- fin de combat : on enchaîne directement sur la boutique ----------
   useEffect(() => {
@@ -644,6 +654,8 @@ export default function App() {
               busy={busy}
               onPlay={doPlay}
               onDiscard={doDiscard}
+              onRewind={() => act({ type: 'rewind' }, () => setSelected([]))}
+              onFinish={showVerdict}
             />
           )}
 
@@ -672,6 +684,7 @@ export default function App() {
               onLock={(item) => act({ type: 'lock', key: item.key }, (r) => !r.error && sound.tick())}
               onPick={(i) => act({ type: 'pick', index: i, ids: selected }, (r) => !r.error && setSelected([]))}
               onSkipPack={() => act({ type: 'skipPack' })}
+              onLoan={(amount) => act({ type: 'loan', amount }, (r) => !r.error && sound.coin())}
               onReady={() => {
                 setSelected([])
                 setJokerSel(null)
@@ -821,8 +834,11 @@ function CombatArea(props: {
   busy: boolean
   onPlay: () => void
   onDiscard: () => void
+  onRewind: () => void
+  onFinish: () => void
 }) {
   const { me, cs, anim, juice, selected, busy } = props
+  const rewindable = !!cs.canRewind && !cs.rewindUsed && !anim
   const hand = anim ? anim.held : props.sortCards(cs.hand)
   const n = hand.length
   const scoringIds = useMemo(() => new Set(anim?.res.scoring.map((c) => c.id) ?? []), [anim])
@@ -840,6 +856,19 @@ function CombatArea(props: {
           </div>
         ) : (
           <div className="play-hint">{cs.finished ? '' : selected.length ? 'Jouer ou défausser ?' : 'Sélectionne jusqu’à 5 cartes'}</div>
+        )}
+        {rewindable && (
+          <div className="rewind-box">
+            <button className="btn orange" disabled={busy} onClick={props.onRewind}>
+              ⟲ Rejouer la dernière main
+            </button>
+            {cs.finished && (
+              <button className="btn blue" disabled={busy} onClick={props.onFinish}>
+                Terminer le combat
+              </button>
+            )}
+            <div className="muted small">Le Maître du Temps · une fois par combat</div>
+          </div>
         )}
       </div>
 
@@ -908,6 +937,7 @@ function ShopArea(props: {
   toggle: (id: number) => void
   onMatches: () => void
   onBuy: (item: ShopItem) => unknown
+  onLoan: (amount: number) => unknown
   onReroll: () => unknown
   onLock: (item: ShopItem) => unknown
   onPick: (i: number) => unknown
@@ -1045,6 +1075,24 @@ function ShopArea(props: {
                 <div className="shop-row">{shop.packs.map(itemCard)}</div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {(me.debt || me.jokers.some((j) => j.defId === 'usurer')) && (
+        <div className="loan panel-ui">
+          <div className="income-title">🏦 L’Usurier</div>
+          <div className="loan-row">
+            <span>
+              Dette : <b className={me.debt ? 't-mult' : ''}>{me.debt ?? 0} $</b> / 20 $ — chaque $ dû te coûte <b>1 PV</b> à la fin du round
+            </span>
+            <span className="loan-btns">
+              <button className="btn orange sm" disabled={(me.debt ?? 0) >= 20 || !me.jokers.some((j) => j.defId === 'usurer')} onClick={() => props.onLoan(5)}>
+                Emprunter 5 $
+              </button>
+              <button className="btn green sm" disabled={!me.debt || me.gold < 1} onClick={() => props.onLoan(-5)}>
+                Rembourser 5 $
+              </button>
+            </span>
           </div>
         </div>
       )}
@@ -1351,8 +1399,9 @@ function SoundButtons() {
 function IncomeBox({ me }: { me: Player }) {
   const cap = me.vouchers.includes('seedMoney') ? 10 : 5
   const g = Math.max(0, me.gold)
-  const interest = Math.min(cap, Math.floor(g / 5))
-  const nextStep = interest < cap ? (Math.floor(g / 5) + 1) * 5 : null
+  const leaky = me.jokers.some((j) => j.defId === 'leakyPurse')
+  const interest = leaky ? 0 : Math.min(cap, Math.floor(g / 5))
+  const nextStep = !leaky && interest < cap ? (Math.floor(g / 5) + 1) * 5 : null
   return (
     <div className="income panel-ui">
       <div className="income-title">💰 Ton revenu au prochain round</div>
@@ -1376,7 +1425,7 @@ function IncomeBox({ me }: { me: Player }) {
       </div>
       <div className="muted small">
         Tu as {me.gold} $ → {interest} $ d’intérêts.
-        {nextStep !== null ? ` Garde ${nextStep} $ pour en gagner ${interest + 1}.` : ' Tu touches le maximum : bravo !'} Dépenser, c’est te renforcer
+        {leaky ? ' La Bourse Crevée t’empêche de toucher des intérêts.' : nextStep !== null ? ` Garde ${nextStep} $ pour en gagner ${interest + 1}.` : ' Tu touches le maximum : bravo !'} Dépenser, c’est te renforcer
         maintenant ; garder, c’est plus d’argent plus tard.
       </div>
     </div>

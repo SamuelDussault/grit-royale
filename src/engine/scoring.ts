@@ -97,7 +97,7 @@ export class ScoreCtx {
 function activeJokers(player: Player, combat: CombatState): { j: JokerInst; def: JokerDef; self: JokerInst }[] {
   const out: { j: JokerInst; def: JokerDef; self: JokerInst }[] = []
   player.jokers.forEach((self, i) => {
-    if (self.defId === 'spy') {
+    if (self.defId === 'spy' || self.defId === 'impostor') {
       const target = combat.spyCopies?.[self.uid]
       if (target) out.push({ j: target, def: getJoker(target.defId), self })
       return
@@ -184,6 +184,16 @@ export function scoreHand(o: {
     }
   }
 
+  // Miroir Brisé : jetons et Grit s'échangent juste avant les jokers
+  const mirrors = player.jokers.filter((j) => j.defId === 'brokenMirror')
+  if (mirrors.length % 2 === 1) {
+    ctx.cur = { joker: mirrors[0].uid }
+    const c = ctx.chips
+    ctx.chips = ctx.mult
+    ctx.mult = c
+    ctx.info('Miroir Brisé', 'Jetons ⇄ Grit')
+  }
+
   // 4) Jokers, de gauche à droite (éditions comprises)
   for (const { j, def, self } of jokers) {
     const label = self === j ? name(j) : `${name(self)} → ${name(j)}`
@@ -220,6 +230,7 @@ export function scoreHand(o: {
     events: ctx.events,
     money: ctx.money,
     destroyed: ctx.destroyed,
+    containsStraight: ctx.contains.has('straight'),
   }
 }
 

@@ -74,6 +74,8 @@ export interface Player {
   beatenBy: number[]
   /** Mains en moins au prochain combat (malédiction Brouillard). */
   nextHandsMalus?: number
+  /** L’Usurier : or emprunté à la banque (1 PV perdu par $ dû à chaque fin de round). */
+  debt?: number
   lastConsumable?: { kind: ConsumableKind; defId: string } // pour Le Mat
   stats: {
     planetsUsed: number
@@ -110,6 +112,12 @@ export interface CombatState {
   lobbyJokerKinds?: number
   /** L'Espion : joker copié chez l'adversaire, par uid d'Espion. */
   spyCopies?: Record<number, JokerInst>
+  /** Or de l'adversaire au début du duel (Le Fanfaron). */
+  oppGold?: number
+  /** Le Maître du Temps : rediffusion déjà utilisée ce combat. */
+  rewindUsed?: boolean
+  /** Le Maître du Temps : une rediffusion est possible maintenant. */
+  canRewind?: boolean
 }
 
 export interface ScoreTarget {
@@ -139,4 +147,5 @@ export interface ScoreResult {
   events: ScoreEvent[]
   money: number
   destroyed: Card[]
+  containsStraight?: boolean
 }

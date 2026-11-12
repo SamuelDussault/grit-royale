@@ -2,13 +2,13 @@
 // Gère plusieurs joueurs humains : chaque humain agit via des « actions » (voir actions.ts),
 // et un round ne se termine que quand tous les humains encore en vie ont fini.
 import type { CombatState, HandType, Player } from './types'
-import { standardDeck } from './cards'
+import { makeCard, standardDeck, SUITS } from './cards'
 import { HAND_TYPES } from './hands'
 import { Rng } from './rng'
 import { botCombat, botShop } from './bot'
 import { startCombat } from './combat'
-import { addJoker, giveConsumable, jokerRoom, newJoker, PLANET_FOR, randomJokerId } from './consumables'
-import { getJoker } from './jokers'
+import { addJoker, ENH_LIST, lastAcquireMsg, giveConsumable, jokerRoom, newJoker, PLANET_FOR, randomJokerId } from './consumables'
+import { countJoker, getJoker, jokersGone } from './jokers'
 import { rollEdition } from './shop'
 import { newShop, type PackSession, type ShopState } from './shop'
 
@@ -255,8 +255,8 @@ export function carouselPick(gs: GameState, pid: number, index: number): { error
   let msg: string
   const j = newJoker(item.defId, item.edition)
   if (jokerRoom(p, j)) {
-    addJoker(p, j)
-    msg = `${getJoker(item.defId).name} obtenu au carrousel !`
+    addJoker(p, j, gs.rng)
+    msg = `${getJoker(item.defId).name} obtenu au carrousel !${lastAcquireMsg ? ` ${lastAcquireMsg}` : ''}`
   } else {
     p.gold += 4
     msg = 'Plus de place pour un joker : +4 $ à la place'
@@ -287,12 +287,31 @@ function runCarousel(gs: GameState) {
     if (!best) break
     best.it.takenBy = p.id
     const j = newJoker(best.it.defId, best.it.edition)
-    if (jokerRoom(p, j)) addJoker(p, j)
+    if (jokerRoom(p, j)) addJoker(p, j, gs.rng)
     else p.gold += 4
     c.turn++
   }
   gs.carousel = { ...c, turn: c.order.length }
   openShops(gs)
+}
+
+/** Applique des dégâts de duel (Garde du Corps absorbe d'abord). Renvoie les PV vraiment perdus. */
+function takeDuelDamage(p: Player, dmg: number, msg: (id: number, t: string) => void): number {
+  for (const j of [...p.jokers]) {
+    if (j.defId !== 'bodyguard' || dmg <= 0) continue
+    const left = j.state.left ?? 5
+    const absorbed = Math.min(left, dmg)
+    dmg -= absorbed
+    j.state.left = left - absorbed
+    msg(p.id, `Garde du Corps : ${absorbed} dégâts bloqués`)
+    if (j.state.left <= 0) {
+      p.jokers = p.jokers.filter((x) => x !== j)
+      jokersGone(p)
+      msg(p.id, 'Ton Garde du Corps tombe en ruine')
+    }
+  }
+  p.hp -= dmg
+  return dmg
 }
 
 /** Dégâts infligés au perdant. */
@@ -341,19 +360,40 @@ function prepareCombat(gs: GameState, p: Player): CombatState {
     const sab = opp.jokers.filter((j) => j.defId === 'saboteur').length
     cs.discardsLeft = Math.max(0, cs.discardsLeft - sab)
   }
-  // Espion : copie un joker au hasard de l'adversaire
-  const spies = p.jokers.filter((j) => j.defId === 'spy')
-  if (spies.length && opp) {
+  // Espion (joker au hasard) et Imposteur (joker le plus à gauche) : copient l'adversaire
+  const copiers = p.jokers.filter((j) => j.defId === 'spy' || j.defId === 'impostor')
+  if (copiers.length && opp) {
     const pool = opp.jokers.filter((j) => {
       const d = getJoker(j.defId)
-      return !d.copy && d.copyable !== false && j.defId !== 'spy'
+      return !d.copy && d.copyable !== false
     })
     cs.spyCopies = {}
-    for (const s of spies) {
+    for (const s of copiers) {
       if (!pool.length) break
-      const t = gs.rng.pick(pool)
+      const t = s.defId === 'impostor' ? pool[0] : gs.rng.pick(pool)
       cs.spyCopies[s.uid] = { ...t, state: { ...t.state } }
     }
+  }
+  if (opp) cs.oppGold = opp.gold
+  // Sablier Cassé : une défausse de plus
+  cs.discardsLeft += countJoker(p, 'brokenHourglass')
+  // Roue de la Fortune Inversée : 1 chance sur 3 d'améliorer toute la main
+  for (let i = 0; i < countJoker(p, 'wheelInv'); i++) {
+    if (!gs.rng.chance(1 / 3)) continue
+    for (const c of cs.hand) if (!c.enh) c.enh = gs.rng.pick(['steel', 'gold', 'glass', 'mult'] as const)
+  }
+  // L'Alchimiste : une carte de la main devient en Or
+  for (let i = 0; i < countJoker(p, 'alchemist'); i++) {
+    const pool = cs.hand.filter((c) => c.enh !== 'gold' && c.enh !== 'cursed')
+    if (pool.length) gs.rng.pick(pool).enh = 'gold'
+  }
+  // Le Fossoyeur : la carte ressuscitée rejoint la main de départ (+50 jetons)
+  for (const j of p.jokers) {
+    if (j.defId !== 'gravedigger' || !j.state.rank) continue
+    const c = makeCard(j.state.rank, SUITS[j.state.suit ?? 0])
+    if (j.state.enh) c.enh = ENH_LIST[j.state.enh - 1]
+    c.extraChips = 50
+    cs.hand.push(c)
   }
   return cs
 }
@@ -475,9 +515,30 @@ function resolveRound(gs: GameState) {
     const loser = aWins ? B : A
     const winner = aWins ? A : B
     m.damage = computeDamage(gs.round, Math.max(m.scoreA, m.scoreB), Math.min(m.scoreA, m.scoreB), winner, loser)
-    if (m.ghostB) {
-      if (!aWins) A.hp -= m.damage
-    } else loser.hp -= m.damage
+    const realHit = !m.ghostB || !aWins
+    if (realHit) {
+      const taken = takeDuelDamage(loser, m.damage, msg)
+      // L'Encaisseur : +2 $ par tranche de 5 PV perdus (max 10 $)
+      addExtra(loser.id, 'L’Encaisseur', countJoker(loser, 'cashier') * Math.min(10, 2 * Math.floor(taken / 5)))
+      if (!m.ghostB) {
+        // Miroir Divin : le gagnant subit la moitié des dégâts
+        const mirror = countJoker(loser, 'divineMirror')
+        if (mirror && taken > 0) {
+          const back = Math.ceil(taken * 0.5) * mirror
+          winner.hp -= back
+          msg(winner.id, `Le Miroir Divin de ${loser.name} te renvoie ${back} dégâts`)
+          msg(loser.id, `Miroir Divin : ${winner.name} subit ${back} dégâts`)
+        }
+        // Poupée Vaudou : 2 PV + 2 par carte maudite dans ton paquet
+        const voodoo = countJoker(loser, 'voodoo')
+        if (voodoo) {
+          const hurt = voodoo * (2 + 2 * loser.deck.filter((c) => c.enh === 'cursed').length)
+          winner.hp -= hurt
+          msg(winner.id, `La Poupée Vaudou de ${loser.name} te fait perdre ${hurt} PV`)
+          msg(loser.id, `Poupée Vaudou : ${winner.name} perd ${hurt} PV`)
+        }
+      }
+    }
     results.set(m.a, aWins)
     if (!m.ghostB) results.set(m.b, !aWins)
     // La Vengeance : on retient qui nous a battus
@@ -535,7 +596,7 @@ function resolveRound(gs: GameState) {
     add('Revenu de base', CONFIG.baseIncome)
     const cap = p.vouchers.includes('seedMoney') ? 10 : CONFIG.interestCap
     const g = Math.max(0, p.gold)
-    add('Intérêts', Math.min(cap, Math.floor(g / CONFIG.interestPer)))
+    if (!countJoker(p, 'leakyPurse')) add('Intérêts', Math.min(cap, Math.floor(g / CONFIG.interestPer)))
     const moons = p.jokers.filter((j) => j.defId === 'toTheMoon').length
     add('Vers la Lune', moons * Math.floor(g / 5))
     if (!gs.boss) {
@@ -572,8 +633,14 @@ function resolveRound(gs: GameState) {
       if (r.money) add(getJoker(j.defId).name, r.money)
       if (r.destroy) {
         p.jokers = p.jokers.filter((x) => x !== j)
+        jokersGone(p)
         if (r.msg) msg(p.id, r.msg)
       }
+    }
+    // L'Usurier : chaque $ dû coûte 1 PV
+    if (p.debt) {
+      p.hp -= p.debt
+      msg(p.id, `Dette de ${p.debt} $ : −${p.debt} PV`)
     }
     for (const l of lines) p.gold += l.amount
     goldAll[p.id] = lines
@@ -672,12 +739,28 @@ export function autoPlayHuman(gs: GameState, id: number, advance = true) {
 }
 
 /** Temps écoulé : les humains en retard finissent automatiquement (combat joué par l'IA, boutique fermée). */
+/** Heure limite d'un joueur (Sablier Cassé : moitié du temps en combat). */
+export function personalDeadline(gs: GameState, id: number): number | undefined {
+  if (!gs.deadline) return undefined
+  const p = gs.players[id]
+  if (gs.phase === 'combat' && p && countJoker(p, 'brokenHourglass')) return gs.deadline - CONFIG.combatTime / 2
+  return gs.deadline
+}
+
 export function checkTimeout(gs: GameState, now = Date.now()): boolean {
   if (gs.phase === 'carousel' && gs.deadline && now >= gs.deadline && gs.carousel) {
     // temps écoulé : on prend le premier joker libre pour le joueur en retard
     const c = gs.carousel
     const free = c.items.findIndex((it) => it.takenBy === undefined)
     if (free >= 0) carouselPick(gs, c.order[c.turn], free)
+    return true
+  }
+  // Sablier Cassé : la moitié du temps seulement pour jouer ses mains
+  if (gs.phase === 'combat' && gs.deadline && now < gs.deadline) {
+    const rushed = waitingFor(gs).filter((p) => countJoker(p, 'brokenHourglass') && now >= personalDeadline(gs, p.id)!)
+    if (!rushed.length) return false
+    for (const p of rushed) autoPlayHuman(gs, p.id, false)
+    maybeAdvance(gs)
     return true
   }
   if (!gs.deadline || now < gs.deadline || (gs.phase !== 'shop' && gs.phase !== 'combat')) return false

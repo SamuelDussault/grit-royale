@@ -1,6 +1,6 @@
 import type { Card, CombatState, HandType, JokerInst, Player, Suit } from './types'
 import type { Rules, ScoreCtx } from './scoring'
-import { isSuit, SUIT_PLURAL } from './cards'
+import { isSuit, makeCard, SUIT_PLURAL, SUITS } from './cards'
 import { HANDS } from './hands'
 import type { Rng } from './rng'
 
@@ -34,12 +34,15 @@ export interface JokerDef {
   onRoundEnd?(p: Player, j: JokerInst, info: RoundEndInfo): { money?: number; destroy?: boolean; msg?: string } | void
   onSellAny?(p: Player, j: JokerInst): void
   onElimination?(p: Player, j: JokerInst): number
+  /** Quand le joker arrive chez le joueur (achat, paquet, carrousel…). */
+  onAcquire?(p: Player, j: JokerInst, rng: Rng): string | void
   damageBonus?: number
   damageTakenMult?: number
   /** Dégâts supplémentaires subis en cas de défaite. */
   damageTakenBonus?: number
 }
 
+const rankShort = (r: number) => (r <= 10 ? String(r) : ({ 11: 'Valet', 12: 'Dame', 13: 'Roi', 14: 'As' } as Record<number, string>)[r])
 const faceVal = (r: number) => (r === 14 ? 11 : r >= 11 ? 10 : r)
 const st = (j: JokerInst, k: string, d = 0) => j.state[k] ?? d
 
@@ -294,7 +297,10 @@ const LIST: JokerDef[] = [
     onJoker: (ctx, j, l) => ctx.addChips(st(j, 'c', 100), l),
     after: (ctx, j) => {
       j.state.c = st(j, 'c', 100) - 5
-      if (j.state.c <= 0) ctx.player.jokers = ctx.player.jokers.filter((x) => x !== j)
+      if (j.state.c <= 0) {
+        ctx.player.jokers = ctx.player.jokers.filter((x) => x !== j)
+        jokersGone(ctx.player)
+      }
     },
   },
   {
@@ -513,7 +519,10 @@ const LIST: JokerDef[] = [
     retrigger: () => 1,
     after: (ctx, j) => {
       j.state.n = st(j, 'n', 10) - 1
-      if (j.state.n <= 0) ctx.player.jokers = ctx.player.jokers.filter((x) => x !== j)
+      if (j.state.n <= 0) {
+        ctx.player.jokers = ctx.player.jokers.filter((x) => x !== j)
+        jokersGone(ctx.player)
+      }
     },
   },
   {
@@ -943,6 +952,303 @@ const LIST: JokerDef[] = [
       if (ctx.combat.vsGhost || ctx.combat.vsBoss) ctx.addChips(50, l)
     },
   },
+  // ================= NOUVEAUX : COMMUNS =================
+  {
+    id: 'electric',
+    name: 'Joker Électrique',
+    rarity: 1,
+    cost: 4,
+    desc: () => '+15 Grit. Jouer une main qui contient une Suite te coûte aussi 1 défausse',
+    onJoker: (ctx, _j, l) => ctx.addMult(15, l),
+  },
+  {
+    id: 'gambler',
+    name: 'Le Parieur',
+    rarity: 1,
+    cost: 5,
+    desc: () => '1 chance sur 4 de donner ×2 Grit, sinon rien',
+    onJoker: (ctx, _j, l) => {
+      if (ctx.rng.chance(1 / 4)) ctx.xMult(2, l)
+      else ctx.info(l, 'Raté !')
+    },
+  },
+  {
+    id: 'brokenMirror',
+    name: 'Miroir Brisé',
+    rarity: 1,
+    cost: 4,
+    desc: () => 'Juste avant les jokers, échange tes jetons et ton Grit (les bonus de jetons des jokers deviennent énormes)',
+  },
+  {
+    id: 'rusty',
+    name: 'Joker Rouillé',
+    rarity: 1,
+    cost: 3,
+    desc: () => '+10 Grit. Perd 1 $ de valeur de revente à chaque fin de round',
+    onJoker: (ctx, _j, l) => ctx.addMult(10, l),
+    onRoundEnd: (_p, j) => {
+      j.sellBonus -= 1
+    },
+  },
+  {
+    id: 'swissKnife',
+    name: 'Couteau Suisse',
+    rarity: 1,
+    cost: 5,
+    desc: () => '+20 jetons si la main jouée contient au moins un Cœur, un Carreau, un Pique et un Trèfle',
+    onJoker: (ctx, _j, l) => {
+      const ok = SUITS.every((s) => ctx.played.some((c) => c.enh !== 'stone' && c.enh !== 'cursed' && isSuit(c, s, ctx.rules.smeared)))
+      if (ok) ctx.addChips(20, l)
+    },
+  },
+  {
+    id: 'greenBill',
+    name: 'Billet Vert',
+    rarity: 1,
+    cost: 4,
+    desc: (_j, p) => `+1 $ à la fin du round par tranche de 10 cartes dans ton paquet${p ? ` (actuel : +${Math.floor(p.deck.length / 10)} $)` : ''}`,
+    onRoundEnd: (p) => ({ money: Math.floor(p.deck.length / 10) }),
+  },
+  {
+    id: 'sick',
+    name: 'Joker Malade',
+    rarity: 1,
+    cost: 3,
+    desc: (_j, p) => `+5 Grit par tranche de 10 PV qui te manquent${p ? ` (actuel : +${5 * Math.floor(Math.max(0, p.maxHp - p.hp) / 10)})` : ''}`,
+    onJoker: (ctx, _j, l) => ctx.addMult(5 * Math.floor(Math.max(0, ctx.player.maxHp - ctx.player.hp) / 10), l),
+  },
+  {
+    id: 'holeySock',
+    name: 'Chaussette Trouée',
+    rarity: 1,
+    cost: 3,
+    desc: () => 'Les 2 et les 3 qui comptent donnent +25 jetons',
+    onScored: (ctx, _j, c, l) => {
+      if (c.enh !== 'stone' && (c.rank === 2 || c.rank === 3)) ctx.addChips(25, l)
+    },
+  },
+  {
+    id: 'braggart',
+    name: 'Le Fanfaron',
+    rarity: 1,
+    cost: 4,
+    pvp: true,
+    desc: () => '+30 jetons par main si tu commences le duel avec strictement moins d’or que ton adversaire',
+    onJoker: (ctx, _j, l) => {
+      if (ctx.combat.oppGold !== undefined && ctx.player.gold < ctx.combat.oppGold) ctx.addChips(30, l)
+    },
+  },
+  {
+    id: 'cashier',
+    name: 'L’Encaisseur',
+    rarity: 1,
+    cost: 5,
+    pvp: true,
+    desc: () => 'Quand tu perds des PV en duel : +2 $ par tranche de 5 PV perdus (max 10 $)',
+  },
+
+  // ================= NOUVEAUX : PEU COMMUNS =================
+  {
+    id: 'string',
+    name: 'Bout de Ficelle',
+    rarity: 2,
+    cost: 6,
+    desc: () => '×1.3 Grit si la main jouée est une Couleur (pas une Quinte flush)',
+    onJoker: (ctx, _j, l) => {
+      if (ctx.type === 'flush') ctx.xMult(1.3, l)
+    },
+  },
+  {
+    id: 'brokenHourglass',
+    name: 'Sablier Cassé',
+    rarity: 2,
+    cost: 6,
+    desc: () => '+1 défausse par combat, mais en ligne tu n’as que la moitié du temps pour jouer tes mains',
+  },
+  {
+    id: 'usurer',
+    name: 'L’Usurier',
+    rarity: 2,
+    cost: 7,
+    desc: (_j, p) =>
+      `Te permet d’emprunter jusqu’à 20 $ à la banque. À chaque fin de round, chaque $ dû te retire 1 PV${p?.debt ? ` (dette : ${p.debt} $)` : ''}`,
+  },
+  {
+    id: 'voodoo',
+    name: 'Poupée Vaudou',
+    rarity: 2,
+    cost: 6,
+    pvp: true,
+    desc: () => 'Quand tu perds un duel, ton adversaire perd 2 PV, +2 PV par carte maudite dans ton paquet',
+  },
+  {
+    id: 'lead',
+    name: 'Joker de Plomb',
+    rarity: 2,
+    cost: 6,
+    pvp: true,
+    desc: () => 'Tu subis 50 % de dégâts en moins, mais ×0.8 Grit',
+    damageTakenMult: 0.5,
+    onJoker: (ctx, _j, l) => ctx.xMult(0.8, l),
+  },
+  {
+    id: 'megalith',
+    name: 'Mégalithe',
+    rarity: 2,
+    cost: 7,
+    desc: () => '+50 Grit, mais tu ne pioches plus après avoir joué ou défaussé (seulement ta main de départ)',
+    onJoker: (ctx, _j, l) => ctx.addMult(50, l),
+  },
+  {
+    id: 'impostor',
+    name: 'L’Imposteur',
+    rarity: 2,
+    cost: 6,
+    pvp: true,
+    copyable: false,
+    desc: () => 'Copie l’effet du joker le plus à gauche de ton adversaire du round',
+  },
+  {
+    id: 'doubleEdge',
+    name: 'Double Tranchant',
+    rarity: 2,
+    cost: 6,
+    pvp: true,
+    desc: () => 'Tes victoires infligent +8 dégâts, mais tes défaites te coûtent 4 PV de plus',
+    damageBonus: 8,
+    damageTakenBonus: 4,
+  },
+  {
+    id: 'catalyst',
+    name: 'Catalyseur',
+    rarity: 2,
+    cost: 7,
+    desc: (j) => `Gagne ×0.1 Grit à chaque carte détruite de ton paquet (actuel : ×${st(j, 'x', 1).toFixed(1)})`,
+    onJoker: (ctx, j, l) => ctx.xMult(st(j, 'x', 1), l),
+  },
+  {
+    id: 'alchemist',
+    name: 'L’Alchimiste',
+    rarity: 2,
+    cost: 6,
+    desc: () => 'Au début de chaque combat, 1 carte au hasard de ta main devient une carte en Or',
+  },
+  {
+    id: 'bodyguard',
+    name: 'Garde du Corps',
+    rarity: 2,
+    cost: 6,
+    pvp: true,
+    desc: (j) => `Bloque les ${st(j, 'left', 5)} prochains PV de dégâts que tu subis en duel, puis tombe en ruine`,
+  },
+  {
+    id: 'leakyPurse',
+    name: 'Bourse Crevée',
+    rarity: 2,
+    cost: 5,
+    desc: () => 'Tu ne gagnes plus d’intérêts, mais les Carreaux qui comptent donnent +10 jetons',
+    onScored: (ctx, _j, c, l) => {
+      if (isSuit(c, 'D', ctx.rules.smeared)) ctx.addChips(10, l)
+    },
+  },
+
+  // ================= NOUVEAUX : RARES =================
+  {
+    id: 'wheelInv',
+    name: 'La Roue de la Fortune Inversée',
+    rarity: 3,
+    cost: 8,
+    desc: () => 'Au début de chaque combat, 1 chance sur 3 : toutes les cartes sans amélioration de ta main deviennent Acier, Or, Verre ou Grit (au hasard)',
+  },
+  {
+    id: 'timeMaster',
+    name: 'Le Maître du Temps',
+    rarity: 3,
+    cost: 9,
+    desc: () => 'Une fois par combat, tu peux annuler la dernière main jouée et la rejouer',
+  },
+  {
+    id: 'devilPact',
+    name: 'Pacte avec le Diable',
+    rarity: 3,
+    cost: 8,
+    desc: () => '×3 Grit. Tu perds 10 PV quand tu obtiens ce joker',
+    onJoker: (ctx, _j, l) => ctx.xMult(3, l),
+    onAcquire: (p) => {
+      p.hp = Math.max(1, p.hp - 10)
+      return 'Pacte scellé : −10 PV'
+    },
+  },
+  {
+    id: 'strategist',
+    name: 'Le Stratège',
+    rarity: 3,
+    cost: 8,
+    desc: (_j, p) => {
+      const n = p ? Object.values(p.handPlays).filter((v) => v > 0).length : 0
+      return `×0.5 Grit par type de main différent joué cette partie${p ? ` (actuel : ×${(1 + 0.5 * n).toFixed(1)})` : ''}`
+    },
+    onJoker: (ctx, _j, l) => {
+      const types = new Set(Object.entries(ctx.player.handPlays).filter(([, v]) => v > 0).map(([t]) => t))
+      types.add(ctx.type)
+      ctx.xMult(1 + 0.5 * types.size, l)
+    },
+  },
+  {
+    id: 'divineMirror',
+    name: 'Joker Miroir Divin',
+    rarity: 3,
+    cost: 10,
+    pvp: true,
+    desc: () => 'Quand tu perds un duel, ton adversaire subit 50 % des dégâts qu’il t’inflige',
+  },
+  {
+    id: 'gravedigger',
+    name: 'Le Fossoyeur',
+    rarity: 3,
+    cost: 8,
+    desc: (j) =>
+      j.state.rank
+        ? `Ressuscite la carte détruite (${rankShort(j.state.rank)}) dans ta main de départ à chaque combat, avec +50 jetons`
+        : 'Ressuscite la première carte détruite de ton paquet : elle revient dans ta main de départ à chaque combat, avec +50 jetons',
+  },
+  {
+    id: 'champagne',
+    name: 'Bouchon de Champagne',
+    rarity: 3,
+    cost: 9,
+    desc: () => '×4 Grit pour la première main du combat, puis ce joker est détruit',
+    onJoker: (ctx, _j, l) => {
+      if (ctx.combat.handScores.length === 0) ctx.xMult(4, l)
+    },
+    onRoundEnd: () => ({ destroy: true, msg: 'Le Bouchon de Champagne a sauté !' }),
+  },
+
+  // ================= NOUVEAUX : LÉGENDAIRES =================
+  {
+    id: 'promethee',
+    name: 'Prométhée',
+    rarity: 4,
+    cost: 20,
+    desc: (j) => `Gagne ×0.5 Grit permanent à chaque joker vendu ou détruit (actuel : ×${st(j, 'x', 1).toFixed(1)})`,
+    onJoker: (ctx, j, l) => ctx.xMult(st(j, 'x', 1), l),
+  },
+  {
+    id: 'pandora',
+    name: 'Pandore',
+    rarity: 4,
+    cost: 20,
+    desc: () => 'Quand tu l’obtiens : ton paquet est remplacé par 15 figures toutes en Acier ou en Verre',
+    onAcquire: (p, _j, rng) => {
+      p.deck = Array.from({ length: 15 }, () => {
+        const c = makeCard(rng.int(11, 13), rng.pick(SUITS))
+        c.enh = rng.chance(0.5) ? 'steel' : 'glass'
+        if (rng.chance(0.15)) c.edition = rng.pick(['foil', 'holo', 'poly'] as const)
+        return c
+      })
+      return 'La boîte de Pandore est ouverte : ton paquet n’a plus que 15 figures améliorées !'
+    },
+  },
 ]
 
 export const JOKERS: Record<string, JokerDef> = Object.fromEntries(LIST.map((d) => [d.id, d]))
@@ -970,7 +1276,16 @@ export function resolveCopy(jokers: JokerInst[], index: number, depth = 0): Joke
 }
 
 export function sellValue(j: JokerInst): number {
-  return Math.max(1, Math.floor(j.basePrice / 2)) + j.sellBonus
+  return Math.max(0, Math.max(1, Math.floor(j.basePrice / 2)) + j.sellBonus)
+}
+
+/** Un ou plusieurs jokers ont été vendus ou détruits (Prométhée). */
+export function jokersGone(p: Player, n = 1) {
+  for (const j of p.jokers) if (j.defId === 'promethee') j.state.x = (j.state.x ?? 1) + 0.5 * n
+}
+
+export function countJoker(p: Player, id: string): number {
+  return p.jokers.filter((j) => j.defId === id).length
 }
 
 export function jokerSlotsUsed(p: Player): number {

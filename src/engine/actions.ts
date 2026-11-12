@@ -1,5 +1,5 @@
 // Toutes les actions qu'un joueur peut faire. L'hôte (ou le jeu solo) les applique sur l'état.
-import type { ScoreResult } from './types'
+import type { Card, CombatState, JokerInst, Player, ScoreResult } from './types'
 import { discardCards, playHand } from './combat'
 import { applyConsumable, getConsumable, useBlocker, type UseEnv } from './consumables'
 import { buy, pickPackOption, reroll, sellConsumable, sellJoker, toggleLock } from './shop'
@@ -22,6 +22,25 @@ export type Action =
   | { type: 'skipPack' }
   | { type: 'ready' }
   | { type: 'finishCombat' }
+  | { type: 'rewind' }
+  | { type: 'loan'; amount: number }
+
+interface Snapshot {
+  cs: CombatState
+  deck: Card[]
+  jokers: JokerInst[]
+  handPlays: Player['handPlays']
+  stats: Player['stats']
+  gold: number
+}
+/** Photos pour Le Maître du Temps (gardées hors de l'état partagé). */
+const snapshots = new Map<number, Snapshot>()
+
+function takeSnapshot(p: Player, cs: CombatState): Snapshot {
+  // un seul structuredClone : les cartes partagées entre paquet et combat restent les mêmes objets
+  const { deck, jokers, handPlays, stats, gold } = p
+  return structuredClone({ cs: { ...cs, canRewind: false }, deck, jokers, handPlays, stats, gold })
+}
 
 export interface ActionResult {
   error?: string
@@ -42,7 +61,48 @@ export function applyAction(gs: GameState, pid: number, a: Action): ActionResult
       case 'play': {
         const cs = gs.combats[pid]
         if (gs.phase !== 'combat' || !cs || gs.ready[pid]) return { error: 'Pas de combat en cours' }
-        return { score: playHand(me, cs, a.ids, gs.rng) }
+        // Le Maître du Temps : on garde une photo avant la main pour pouvoir la rejouer
+        const snap = me.jokers.some((j) => j.defId === 'timeMaster') && !cs.rewindUsed ? takeSnapshot(me, cs) : undefined
+        const score = playHand(me, cs, a.ids, gs.rng)
+        if (snap) {
+          snapshots.set(pid, snap)
+          cs.canRewind = true
+        }
+        return { score }
+      }
+      case 'rewind': {
+        const cs = gs.combats[pid]
+        const snap = snapshots.get(pid)
+        if (gs.phase !== 'combat' || !cs || gs.ready[pid] || !snap || cs.rewindUsed || !cs.canRewind)
+          return { error: 'Aucune main à rejouer' }
+        snapshots.delete(pid)
+        const old = snap.cs
+        me.deck = snap.deck
+        me.jokers = snap.jokers
+        me.handPlays = snap.handPlays
+        me.stats = snap.stats
+        me.gold = snap.gold
+        old.rewindUsed = true
+        old.canRewind = false
+        gs.combats[pid] = old
+        return { msg: 'Le Maître du Temps : la dernière main est annulée, rejoue-la !' }
+      }
+      case 'loan': {
+        if (gs.phase !== 'shop' || gs.ready[pid]) return { error: 'Seulement en boutique' }
+        const debt = me.debt ?? 0
+        if (a.amount > 0) {
+          if (!me.jokers.some((j) => j.defId === 'usurer')) return { error: 'Il te faut L’Usurier pour emprunter' }
+          const n = Math.min(a.amount, 20 - debt)
+          if (n <= 0) return { error: 'Tu dois déjà 20 $' }
+          me.debt = debt + n
+          me.gold += n
+          return { msg: `Emprunt : +${n} $ (dette : ${me.debt} $)` }
+        }
+        const n = Math.min(-a.amount, debt, Math.max(0, me.gold))
+        if (n <= 0) return { error: debt ? 'Pas assez d’or' : 'Aucune dette' }
+        me.debt = debt - n
+        me.gold -= n
+        return { msg: `Remboursé : ${n} $ (dette : ${me.debt} $)` }
       }
       case 'discard': {
         const cs = gs.combats[pid]

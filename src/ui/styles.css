@@ -373,3 +373,28 @@ button, input { font-family: var(--font); }
 .dots span { width: 12px; height: 12px; border-radius: 3px; background: var(--gold); animation: bob 1s ease-in-out infinite; }
 .dots span:nth-child(2) { animation-delay: 0.15s; }
 .dots span:nth-child(3) { animation-delay: 0.3s; }
+
+/* boutons Vendre / Utiliser : dans la carte, ils suivent ses mouvements */
+.card-overlay { position: absolute; left: 0; right: 0; bottom: 6px; display: flex; justify-content: center; z-index: 5; opacity: 0; pointer-events: none; transition: opacity 0.1s; }
+.gcard:hover .card-overlay, .gcard.selected .card-overlay { opacity: 1; pointer-events: auto; }
+.sell-btn { font-size: 17px; padding: 4px 8px; border-radius: 7px; box-shadow: 0 3px 0 var(--sh); white-space: nowrap; }
+.cons-btns { display: flex; flex-direction: column; gap: 5px; align-items: center; }
+
+/* minuterie, sons, revenus */
+.countdown { margin-left: 8px; font-size: 22px; background: rgba(0, 0, 0, 0.3); border-radius: 6px; padding: 0 6px; }
+.countdown.urgent { color: #fff36b; animation: pulse 0.5s infinite; }
+.sound-btns { display: flex; gap: 6px; justify-content: center; }
+.sound-btns .btn { flex: 1; padding: 4px 0; font-size: 18px; }
+.btn.off { background: #555; --sh: #333; opacity: 0.7; }
+.stamp.done { background: var(--purple); }
+.stamp-wrap { flex-direction: column; gap: 18px; }
+.stamp-sub { font-size: 28px; background: rgba(0, 0, 0, 0.6); padding: 4px 14px; border-radius: 10px; }
+.income { width: min(1000px, 100%); padding: 8px 14px; display: flex; flex-direction: column; gap: 2px; font-size: 19px; }
+.income-title { font-size: 24px; }
+.income-row { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dashed rgba(255, 255, 255, 0.12); }
+.income b { color: var(--gold); font-weight: normal; }
+
+/* info-bulles flottantes (rendues au-dessus de tout, bornées à l'écran) */
+.tip-float { position: fixed; z-index: 1000; pointer-events: none; animation: tipIn 0.1s ease-out; }
+.tip-float.above { transform: translateY(-100%); }
+@keyframes tipIn { from { opacity: 0; } }

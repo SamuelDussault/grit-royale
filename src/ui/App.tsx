@@ -3,6 +3,7 @@ import type { Card, Player, ScoreEvent, ScoreResult } from '../engine/types'
 import { alivePlayers, waitingFor, type GameState } from '../engine/game'
 import type { Action, ActionResult } from '../engine/actions'
 import { Session } from '../net/session'
+import { sound } from './sound'
 import { evaluateHand, handBase, HANDS } from '../engine/hands'
 import { collectRules } from '../engine/scoring'
 import { getConsumable, jokerRoom, PLANET_LIST, SPECTRAL_LIST, RARE_SPECTRALS, TAROT_LIST } from '../engine/consumables'
@@ -68,6 +69,11 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [, force] = useReducer((x: number) => x + 1, 0)
   useEffect(() => session?.subscribe(force), [session])
+  useEffect(() => {
+    const unlock = () => sound.unlock()
+    window.addEventListener('pointerdown', unlock)
+    return () => window.removeEventListener('pointerdown', unlock)
+  }, [])
   const [selected, setSelected] = useState<number[]>([])
   const [toasts, setToasts] = useState<Toast[]>([])
   const [modal, setModal] = useState<ModalState>(null)
@@ -76,7 +82,7 @@ export default function App() {
   const [anim, setAnim] = useState<Anim | null>(null)
   const [pops, setPops] = useState<Pop[]>([])
   const [juice, setJuice] = useState<Record<string, number>>({})
-  const [ending, setEnding] = useState<null | { won: boolean | null; text: string }>(null)
+  const [ending, setEnding] = useState<null | { won: boolean | null; text: string; pending?: boolean }>(null)
   const [jokerSel, setJokerSel] = useState<number | null>(null)
   const [consSel, setConsSel] = useState<number | null>(null)
   const dragFrom = useRef<number | null>(null)
@@ -97,7 +103,10 @@ export default function App() {
   const act = async (a: Action, after?: (r: ActionResult) => void) => {
     if (!session) return
     const r = await session.send(a)
-    if (r.error) toast(r.error, true)
+    if (r.error) {
+      toast(r.error, true)
+      sound.error()
+    }
     else if (r.msg) toast(r.msg)
     after?.(r)
     force()
@@ -127,11 +136,15 @@ export default function App() {
           const tg = ev.target
           const key = tg?.joker ? `j${tg.joker}` : tg?.card ? `c${tg.card}` : undefined
           spawnPop(key, ev.text, ev.kind)
+          sound.bonus(ev.kind, anim.i)
           setAnim({ ...anim, i: anim.i + 1, chips: ev.chips, mult: ev.mult })
         }, anim.i === 0 ? 450 : delay)
         return () => clearTimeout(t)
       }
-      const t = setTimeout(() => setAnim({ ...anim, stage: 'total' }), 350)
+      const t = setTimeout(() => {
+        sound.total()
+        setAnim({ ...anim, stage: 'total' })
+      }, 350)
       return () => clearTimeout(t)
     }
     // total
@@ -141,10 +154,25 @@ export default function App() {
       const g = session?.gs
       const cs = g?.combats[meId]
       if (g && cs?.finished) {
-        const opp = g.combats[g.opponents[meId]?.id]
-        const won = cs.score === (opp?.score ?? 0) ? null : cs.score > (opp?.score ?? 0)
-        // on laisse le score adverse finir de s'afficher avant le verdict
-        setTimeout(() => setEnding({ won, text: won === null ? 'ÉGALITÉ' : won ? 'VICTOIRE' : 'DÉFAITE' }), 650)
+        const oppId = g.opponents[meId]?.id
+        const opp = g.combats[oppId]
+        // l'adversaire humain n'a peut-être pas fini : pas de verdict tant qu'on ne sait pas
+        const oppDone = g.players[oppId]?.isBot || (!!g.ready[oppId] && !!opp?.finished)
+        if (!oppDone) {
+          setTimeout(() => {
+            sound.neutral()
+            setEnding({ won: null, text: 'TERMINÉ', pending: true })
+          }, 300)
+        } else {
+          const won = cs.score === (opp?.score ?? 0) ? null : cs.score > (opp?.score ?? 0)
+          // on laisse le score adverse finir de s'afficher avant le verdict
+          setTimeout(() => {
+            if (won) sound.win()
+            else if (won === false) sound.lose()
+            else sound.neutral()
+            setEnding({ won, text: won === null ? 'ÉGALITÉ' : won ? 'VICTOIRE' : 'DÉFAITE' })
+          }, 650)
+        }
       }
     }, 900)
     return () => clearTimeout(t)
@@ -285,8 +313,12 @@ export default function App() {
   const cs = gs.phase === 'combat' ? gs.combats[meId] : undefined
   const myDone = !!gs.ready[meId]
   const busy = !!anim || !!ending
-  const toggle = (id: number) =>
-    !busy && setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length >= 5 ? s : [...s, id]))
+  const toggle = (id: number) => {
+    if (busy) return
+    if (selected.includes(id)) sound.deselect()
+    else if (selected.length < 5) sound.select()
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length >= 5 ? s : [...s, id]))
+  }
 
   const leave = () => {
     session?.close()
@@ -309,12 +341,14 @@ export default function App() {
     const held = ordered.filter((c) => !selected.includes(c.id))
     const scoreBefore = cs.score
     setSelected([])
+    sound.playHand()
     act({ type: 'play', ids: played.map((c) => c.id) }, (r) => {
       if (r.score) setAnim({ res: r.score, played, held, i: 0, chips: r.score.baseChips, mult: r.score.baseMult, stage: 'events', scoreBefore })
     })
   }
   const doDiscard = () => {
     if (!cs || busy) return
+    sound.discard()
     act({ type: 'discard', ids: selected }, () => setSelected([]))
   }
 
@@ -354,27 +388,28 @@ export default function App() {
                   dragFrom.current = null
                   act({ type: 'moveJoker', from, to: i })
                 }}
+                overlay={
+                  !busy && (
+                    <button
+                      className="btn green sell-btn"
+                      onClick={() => {
+                        sound.sell()
+                        act({ type: 'sellJoker', uid: j.uid }, () => setJokerSel(null))
+                      }}
+                    >
+                      Vendre <span className="t-money-dark">{sellValue(j)} $</span>
+                    </button>
+                  )
+                }
               />
-              {!busy && (
-                <button
-                  className="btn green side-tab"
-                  onClick={() =>
-                    act({ type: 'sellJoker', uid: j.uid }, () => setJokerSel(null))
-                  }
-                >
-                  Vendre
-                  <br />
-                  <span className="t-money-dark">{sellValue(j)} $</span>
-                </button>
-              )}
             </div>
           )
         })}
       </div>
       <div className="tray-count">
         {me.jokers.filter((j) => j.edition !== 'negative').length}/{me.maxJokers}
-        <span className="muted"> · survole un joker pour le </span>
-        <span className="t-green">vendre</span>
+        <span className="muted"> · survole un joker : bouton </span>
+        <span className="t-green">Vendre</span>
         <span className="muted"> · glisse pour réordonner</span>
       </div>
     </div>
@@ -386,22 +421,31 @@ export default function App() {
         {me.consumables.length === 0 && <div className="tray-empty">Consommables</div>}
         {me.consumables.map((c, i) => (
           <div key={c.uid} className={`tray-slot ${consSel === c.uid ? 'sel' : ''}`} style={{ marginLeft: i ? 6 : 0, zIndex: consSel === c.uid ? 50 : i }}>
-            <ConsumableCard kind={c.kind} defId={c.defId} tipBelow selected={consSel === c.uid} onClick={() => setConsSel(consSel === c.uid ? null : c.uid)} />
-            {!busy && (
-              <div className="side-tabs left">
-                <button className="btn red side-tab-btn" onClick={() => useCons(c.uid)}>
-                  Utiliser
-                </button>
-                <button
-                  className="btn green side-tab-btn"
-                  onClick={() =>
-                    act({ type: 'sellCons', uid: c.uid }, () => setConsSel(null))
-                  }
-                >
-                  Vendre
-                </button>
-              </div>
-            )}
+            <ConsumableCard
+              kind={c.kind}
+              defId={c.defId}
+              tipBelow
+              selected={consSel === c.uid}
+              onClick={() => setConsSel(consSel === c.uid ? null : c.uid)}
+              overlay={
+                !busy && (
+                  <div className="cons-btns">
+                    <button className="btn red sell-btn" onClick={() => useCons(c.uid)}>
+                      Utiliser
+                    </button>
+                    <button
+                      className="btn green sell-btn"
+                      onClick={() => {
+                        sound.sell()
+                        act({ type: 'sellCons', uid: c.uid }, () => setConsSel(null))
+                      }}
+                    >
+                      Vendre
+                    </button>
+                  </div>
+                )
+              }
+            />
           </div>
         ))}
       </div>
@@ -442,6 +486,7 @@ export default function App() {
         <div className="blind red">
           <div className="blind-head">
             Round {gs.round} · Duel {oppInfo?.ghost && <span className="ghost">fantôme</span>}
+            <Countdown session={session!} />
           </div>
           <div className="blind-body">
             <div className="opp-avatar" style={{ background: avatarColor(opp.id) }}>
@@ -459,7 +504,10 @@ export default function App() {
         </div>
       ) : (
         <div className="blind green">
-          <div className="blind-head">{gs.phase === 'over' ? 'Fin de partie' : 'Boutique'}</div>
+          <div className="blind-head">
+            {gs.phase === 'over' ? 'Fin de partie' : 'Boutique'}
+            {gs.phase === 'shop' && <Countdown session={session!} />}
+          </div>
           <div className="blind-body center">
             <div className="muted">{gs.phase === 'over' ? `${gs.round} rounds joués` : `Prochain round : ${gs.round + 1}`}</div>
           </div>
@@ -495,6 +543,7 @@ export default function App() {
           <button className="btn orange tall" onClick={() => setModal({ kind: 'deck' })}>
             Paquet
           </button>
+          <SoundButtons />
         </div>
         <div className="stats">
           <div className="box stat">
@@ -574,8 +623,16 @@ export default function App() {
               selected={selected}
               toggle={toggle}
               onMatches={() => setModal({ kind: 'matches' })}
-              onBuy={(item) => act({ type: 'buy', key: item.key }, (r) => r.packOpened && setSelected([]))}
-              onReroll={() => act({ type: 'reroll' })}
+              onBuy={(item) =>
+                act({ type: 'buy', key: item.key }, (r) => {
+                  if (r.error) return
+                  if (r.packOpened) {
+                    setSelected([])
+                    sound.packOpen()
+                  } else sound.coin()
+                })
+              }
+              onReroll={() => act({ type: 'reroll' }, (r) => !r.error && sound.reroll())}
               onPick={(i) => act({ type: 'pick', index: i, ids: selected }, (r) => !r.error && setSelected([]))}
               onSkipPack={() => act({ type: 'skipPack' })}
               onReady={() => {
@@ -595,7 +652,8 @@ export default function App() {
 
       {ending && (
         <div className="stamp-wrap">
-          <div className={`stamp ${ending.won ? 'win' : ending.won === null ? 'tie' : 'lose'}`}>{ending.text}</div>
+          <div className={`stamp ${ending.pending ? 'done' : ending.won ? 'win' : ending.won === null ? 'tie' : 'lose'}`}>{ending.text}</div>
+          {ending.pending && <div className="stamp-sub">Le résultat s’affichera quand ton adversaire aura fini.</div>}
         </div>
       )}
 
@@ -890,9 +948,7 @@ function ShopArea(props: {
           </div>
         </div>
       )}
-      <div className="muted small center">
-        Intérêts : +1 $ par tranche de 5 $ gardés (max {me.vouchers.includes('seedMoney') ? 10 : 5} $). Clique un joueur du lobby pour l’espionner.
-      </div>
+      <IncomeBox me={me} />
     </div>
   )
 }
@@ -1129,6 +1185,79 @@ function WaitPanel({ gs, text }: { gs: GameState; text: string }) {
         <span />
         <span />
         <span />
+      </div>
+    </div>
+  )
+}
+
+// ===================== minuterie, sons, revenus =====================
+function Countdown({ session }: { session: Session }) {
+  const [, tick] = useReducer((x: number) => x + 1, 0)
+  const last = useRef(-1)
+  useEffect(() => {
+    const t = setInterval(tick, 250)
+    return () => clearInterval(t)
+  }, [])
+  const ms = session.remaining()
+  if (ms === null) return null
+  const sec = Math.ceil(ms / 1000)
+  if (sec <= 5 && sec > 0 && sec !== last.current) {
+    last.current = sec
+    sound.tick()
+  }
+  return (
+    <span className={`countdown ${sec <= 10 ? 'urgent' : ''}`} title="Temps restant : ensuite, ton tour se termine automatiquement">
+      ⏱ {Math.floor(sec / 60)}:{String(sec % 60).padStart(2, '0')}
+    </span>
+  )
+}
+
+function SoundButtons() {
+  const [, force] = useReducer((x: number) => x + 1, 0)
+  useEffect(() => sound.subscribe(force), [])
+  return (
+    <div className="sound-btns">
+      <button className={`btn sm ${sound.settings.music ? 'blue' : 'off'}`} onClick={() => sound.toggle('music')} title="Musique">
+        ♪
+      </button>
+      <button className={`btn sm ${sound.settings.sfx ? 'blue' : 'off'}`} onClick={() => sound.toggle('sfx')} title="Effets sonores">
+        🔊
+      </button>
+    </div>
+  )
+}
+
+/** Explique clairement l'argent du prochain round. */
+function IncomeBox({ me }: { me: Player }) {
+  const cap = me.vouchers.includes('seedMoney') ? 10 : 5
+  const g = Math.max(0, me.gold)
+  const interest = Math.min(cap, Math.floor(g / 5))
+  const nextStep = interest < cap ? (Math.floor(g / 5) + 1) * 5 : null
+  return (
+    <div className="income panel-ui">
+      <div className="income-title">💰 Ton revenu au prochain round</div>
+      <div className="income-row">
+        <span>Revenu de base</span>
+        <span className="t-money">+5 $</span>
+      </div>
+      <div className="income-row">
+        <span>
+          Intérêts : <b>1 $ pour chaque tranche de 5 $</b> que tu gardes (max {cap} $)
+        </span>
+        <span className="t-money">+{interest} $</span>
+      </div>
+      <div className="income-row">
+        <span>Victoire</span>
+        <span className="t-money">+1 $</span>
+      </div>
+      <div className="income-row">
+        <span>Série de 2+ victoires (ou de 2+ défaites)</span>
+        <span className="t-money">+1 à +3 $</span>
+      </div>
+      <div className="muted small">
+        Tu as {me.gold} $ → {interest} $ d’intérêts.
+        {nextStep !== null ? ` Garde ${nextStep} $ pour en gagner ${interest + 1}.` : ' Tu touches le maximum : bravo !'} Dépenser, c’est te renforcer
+        maintenant ; garder, c’est plus d’argent plus tard.
       </div>
     </div>
   )

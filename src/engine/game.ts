@@ -18,6 +18,9 @@ export const CONFIG = {
   interestPer: 5,
   interestCap: 5,
   players: 8,
+  /** Durées des phases en ligne (ms) */
+  shopTime: 60_000,
+  combatTime: 100_000,
 }
 
 const BOT_NAMES = ['Ruby', 'Gaston', 'Mireille', 'Bertrand', 'Zoé', 'Lucien', 'Fernande', 'Ti-Jean', 'Albert', 'Simone', 'Rosaire', 'Huguette']
@@ -63,6 +66,9 @@ export interface GameState {
   ready: Record<number, boolean>
   lastReport?: RoundReport
   hostId: number
+  /** Minuterie (parties en ligne) : heure limite de la phase, selon l'horloge de l'hôte. */
+  timers?: boolean
+  deadline?: number
 }
 
 function emptyHands(v: number): Record<HandType, number> {
@@ -142,6 +148,7 @@ function openShops(gs: GameState) {
   gs.packs = {}
   gs.ready = {}
   gs.phase = 'shop'
+  gs.deadline = gs.timers ? Date.now() + CONFIG.shopTime : undefined
   for (const p of alivePlayers(gs)) gs.shops[p.id] = newShop(p, gs.rng)
   for (const p of alivePlayers(gs)) if (p.isBot) botShop(p, gs.shops[p.id], gs.rng, gs.round + 1)
   maybeAdvance(gs)
@@ -149,9 +156,10 @@ function openShops(gs: GameState) {
 
 /** Dégâts infligés au perdant. */
 export function computeDamage(round: number, winnerScore: number, loserScore: number, winner: Player, loser: Player): number {
-  const base = 2 + Math.floor(round / 2)
+  // les dégâts grimpent vite au fil des rounds (round 1 : ~2, round 5 : ~7, round 10 : ~16, round 15 : ~28)
+  const base = 1 + round + Math.floor((round * round) / 16)
   const ratio = winnerScore > 0 ? Math.max(0, Math.min(1, loserScore / winnerScore)) : 1
-  const margin = Math.round(8 * (1 - ratio))
+  const margin = Math.round((6 + round * 0.4) * (1 - ratio))
   let dmg = base + margin
   for (const j of winner.jokers) dmg += getJoker(j.defId).damageBonus ?? 0
   for (const j of loser.jokers) dmg *= getJoker(j.defId).damageTakenMult ?? 1
@@ -180,6 +188,7 @@ export function startRound(gs: GameState) {
   gs.combats = {}
   gs.opponents = {}
   gs.phase = 'combat'
+  gs.deadline = gs.timers ? Date.now() + CONFIG.combatTime : undefined
   for (const m of gs.matches) {
     gs.opponents[m.a] = { id: m.b, ghost: !!m.ghostB }
     if (!m.ghostB) gs.opponents[m.b] = { id: m.a, ghost: false }
@@ -387,7 +396,7 @@ export function unseatHuman(gs: GameState, id: number) {
 }
 
 /** Pour la simulation / les tests : joue le tour d'un humain avec l'IA. */
-export function autoPlayHuman(gs: GameState, id: number) {
+export function autoPlayHuman(gs: GameState, id: number, advance = true) {
   const p = gs.players[id]
   p.bot = p.bot ?? { skill: 0.9, greed: 0.5 }
   if (gs.phase === 'combat' && !gs.ready[id]) {
@@ -395,8 +404,25 @@ export function autoPlayHuman(gs: GameState, id: number) {
     gs.combats[id] = botCombat(p, gs.rng, cs.oppHp, cs)
     gs.ready[id] = true
   } else if (gs.phase === 'shop' && !gs.ready[id]) {
+    gs.packs[id] = undefined
     botShop(p, gs.shops[id], gs.rng, gs.round + 1)
     gs.ready[id] = true
   }
+  if (advance) maybeAdvance(gs)
+}
+
+/** Temps écoulé : les humains en retard finissent automatiquement (combat joué par l'IA, boutique fermée). */
+export function checkTimeout(gs: GameState, now = Date.now()): boolean {
+  if (!gs.deadline || now < gs.deadline || (gs.phase !== 'shop' && gs.phase !== 'combat')) return false
+  const late = waitingFor(gs).map((p) => p.id)
+  if (!late.length) return false
+  for (const id of late) {
+    if (gs.phase === 'combat') autoPlayHuman(gs, id, false)
+    else {
+      gs.packs[id] = undefined
+      gs.ready[id] = true
+    }
+  }
   maybeAdvance(gs)
+  return true
 }

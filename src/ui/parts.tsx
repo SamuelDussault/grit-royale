@@ -1,5 +1,6 @@
 // Composants visuels : cartes avec effet 3D, info-bulles, plateaux.
-import { useRef, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { Card, ConsumableKind, Edition, JokerInst, Player } from '../engine/types'
 import { cardChips, EDITION_DESC, EDITION_NAME, ENH_DESC, ENH_NAME, rankName, SEAL_DESC, SEAL_NAME, SUIT_NAME } from '../engine/cards'
 import { getJoker, RARITY_NAME, sellValue, type Rarity } from '../engine/jokers'
@@ -150,8 +151,10 @@ export function GameCard({
   onDragStart,
   onDragOver,
   onDrop,
+  overlay,
 }: {
   children: ReactNode
+  overlay?: ReactNode
   tip?: ReactNode
   tipBelow?: boolean
   selected?: boolean
@@ -167,6 +170,17 @@ export function GameCard({
   onDrop?: React.DragEventHandler
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  const [tipAt, setTipAt] = useState<null | { x: number; y: number; below: boolean }>(null)
+  const showTip = () => {
+    const el = ref.current
+    if (!el || !tip) return
+    const r = el.getBoundingClientRect()
+    const W = 262
+    // toujours entièrement visible : on borne la bulle aux bords de l'écran
+    const x = Math.max(8, Math.min(window.innerWidth - W - 8, r.left + r.width / 2 - W / 2))
+    const below = tipBelow ? r.bottom + 230 < window.innerHeight || r.top < 230 : r.top < 230
+    setTipAt({ x, y: below ? r.bottom + 10 : r.top - 10, below })
+  }
   const move = (e: React.MouseEvent) => {
     const el = ref.current
     if (!el) return
@@ -180,6 +194,7 @@ export function GameCard({
   const leave = () => {
     ref.current?.style.setProperty('--ry', '0deg')
     ref.current?.style.setProperty('--rx', '0deg')
+    setTipAt(null)
   }
   return (
     <div
@@ -191,13 +206,25 @@ export function GameCard({
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      <div ref={ref} className="gcard-inner" onMouseMove={move} onMouseLeave={leave} onClick={onClick}>
+      <div ref={ref} className="gcard-inner" onMouseEnter={showTip} onMouseMove={move} onMouseLeave={leave} onClick={onClick}>
         <div key={juice} className={`gcard-face ${juice ? 'juice' : ''} ${edition ? 'ed-' + edition : ''}`}>
           {children}
           {edition && edition !== 'negative' && <div className="shine" />}
         </div>
+        {overlay && (
+          <div className="card-overlay" onClick={(e) => e.stopPropagation()}>
+            {overlay}
+          </div>
+        )}
       </div>
-      {tip && <div className={`tip ${tipBelow ? 'below' : ''}`}>{tip}</div>}
+      {tip &&
+        tipAt &&
+        createPortal(
+          <div className={`tip-float ${tipAt.below ? 'below' : 'above'}`} style={{ left: tipAt.x, top: tipAt.y }}>
+            {tip}
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }
@@ -235,9 +262,11 @@ export function JokerCard(props: {
   onDragStart?: React.DragEventHandler
   onDragOver?: React.DragEventHandler
   onDrop?: React.DragEventHandler
+  overlay?: ReactNode
 }) {
   return (
     <GameCard
+      overlay={props.overlay}
       tip={jokerTip(props.defId, props.edition, props.inst, props.player)}
       tipBelow={props.tipBelow}
       selected={props.selected}
@@ -257,9 +286,9 @@ export function JokerCard(props: {
   )
 }
 
-export function ConsumableCard(props: { kind: ConsumableKind; defId: string; selected?: boolean; onClick?: () => void; tipBelow?: boolean }) {
+export function ConsumableCard(props: { kind: ConsumableKind; defId: string; selected?: boolean; onClick?: () => void; tipBelow?: boolean; overlay?: ReactNode }) {
   return (
-    <GameCard tip={consumableTip(props.defId)} tipBelow={props.tipBelow} selected={props.selected} onClick={props.onClick} className="ccard">
+    <GameCard overlay={props.overlay} tip={consumableTip(props.defId)} tipBelow={props.tipBelow} selected={props.selected} onClick={props.onClick} className="ccard">
       <ConsumableArt kind={props.kind} defId={props.defId} />
     </GameCard>
   )

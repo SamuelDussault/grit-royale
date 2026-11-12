@@ -4,14 +4,14 @@
 // via PeerJS) : aucun serveur à héberger, le service gratuit de PeerJS ne sert qu'à se trouver.
 import Peer, { type DataConnection } from 'peerjs'
 import { applyAction, type Action, type ActionResult } from '../engine/actions'
-import { newGame, newLobby, seatHuman, unseatHuman, type GameState } from '../engine/game'
+import { checkTimeout, newGame, newLobby, seatHuman, unseatHuman, type GameState } from '../engine/game'
 
 export type Mode = 'solo' | 'host' | 'guest'
 
 type Msg =
   | { t: 'hello'; name: string }
   | { t: 'welcome'; you: number }
-  | { t: 'state'; gs: string }
+  | { t: 'state'; gs: string; now: number }
   | { t: 'act'; id: number; action: Action }
   | { t: 'res'; id: number; res: ActionResult }
   | { t: 'full' }
@@ -38,6 +38,26 @@ export class Session {
   private reqId = 1
   private peer?: Peer
   private bc?: BroadcastChannel
+  private timer?: number
+  /** Décalage entre l'horloge de l'hôte et la nôtre (invités). */
+  private skew = 0
+
+  /** Temps restant (ms) avant la fin de la phase, ou null s'il n'y a pas de minuterie. */
+  remaining(): number | null {
+    const d = this.gs?.deadline
+    if (!d) return null
+    return Math.max(0, d - (Date.now() - this.skew))
+  }
+
+  /** L'hôte vérifie les minuteries : les joueurs en retard finissent automatiquement. */
+  private startClock() {
+    this.timer = window.setInterval(() => {
+      if (this.gs && checkTimeout(this.gs)) {
+        this.broadcast()
+        this.changed()
+      }
+    }, 500)
+  }
 
   private constructor(mode: Mode) {
     this.mode = mode
@@ -61,6 +81,8 @@ export class Session {
   static host(name: string, local = false): Session {
     const s = new Session('host')
     s.gs = newLobby(name)
+    s.gs.timers = true
+    s.startClock()
     s.status = 'Création du salon…'
     const roomId = 'grit-' + Math.random().toString(36).slice(2, 8)
     const base = `${location.origin}${location.pathname}`
@@ -155,7 +177,8 @@ export class Session {
   private broadcast() {
     if (!this.gs || !this.guests.size) return
     const json = JSON.stringify(this.gs)
-    for (const link of this.guests.keys()) link.send({ t: 'state', gs: json })
+    const now = Date.now()
+    for (const link of this.guests.keys()) link.send({ t: 'state', gs: json, now })
   }
 
   // ---------------- invité ----------------
@@ -165,6 +188,7 @@ export class Session {
       this.status = 'Connecté'
     } else if (m.t === 'state') {
       this.gs = JSON.parse(m.gs)
+      this.skew = Date.now() - m.now
     } else if (m.t === 'res') {
       this.pending.get(m.id)?.(m.res)
       this.pending.delete(m.id)
@@ -193,6 +217,7 @@ export class Session {
   }
 
   close() {
+    if (this.timer) clearInterval(this.timer)
     for (const l of this.guests.keys()) l.close()
     this.hostLink?.close()
     this.peer?.destroy()

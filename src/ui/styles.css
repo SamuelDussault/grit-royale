@@ -473,3 +473,42 @@ button, input { font-family: var(--font); }
 .fate-slot.picked { outline: 3px solid #ffe48a; }
 .fate-n { position: absolute; top: -6px; left: -6px; z-index: 2; background: #2a233a; color: #ffe48a; border-radius: 10px; padding: 0 6px; font-size: 13px; }
 .btn.purple { background: #8867a5; --sh: #5b4372; }
+
+/* ---------- Accueil ---------- */
+.home { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding-top: 18px; overflow: hidden; }
+.home-head { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.home-suits { display: flex; gap: 22px; font-size: 30px; color: #e8e0f8; opacity: 0.85; animation: bob 3s ease-in-out infinite; }
+.home-suits .s-red { color: #ff6b7d; }
+.home .logo { font-size: 120px; text-shadow: 0 6px 0 #b8352f, 0 12px 0 #5a1426, 0 18px 24px rgba(0, 0, 0, 0.55); }
+.home .logo span:nth-child(n + 6) { color: #ffe48a; text-shadow: 0 6px 0 #b8791a, 0 12px 0 #5a3a08, 0 18px 24px rgba(0, 0, 0, 0.55); }
+.tagline { font-size: 24px; color: #fff; background: rgba(20, 16, 34, 0.55); padding: 4px 18px; border-radius: 20px; border: 2px solid rgba(255, 255, 255, 0.15); }
+.home-main { display: flex; align-items: center; justify-content: center; gap: 70px; flex: 1; width: 100%; }
+.home-fan { position: relative; width: 430px; height: 300px; --cw: 150px; }
+.fan-card { position: absolute; left: 50%; bottom: 0; transform-origin: 50% 140%; transform: translateX(-50%) rotate(calc(var(--i) * 13deg)) translateY(calc(var(--i) * var(--i) * 6px)); transition: transform 0.25s; z-index: calc(10 - var(--i) * var(--i)); }
+.fan-card:hover { transform: translateX(-50%) rotate(calc(var(--i) * 13deg)) translateY(-28px) scale(1.06); z-index: 30; }
+.home-panel { padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; align-items: center; width: 540px; }
+.home-panel input { font-size: 26px; padding: 8px 14px; border-radius: 10px; border: 3px solid var(--line); background: var(--inner); color: #fff; width: 100%; text-align: center; }
+.mode-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.mode-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px; border-radius: 12px; border: 3px solid var(--line); background: var(--inner); color: #fff; font-family: inherit; cursor: pointer; transition: transform 0.12s, border-color 0.12s; opacity: 0.7; }
+.mode-tile:hover { transform: translateY(-2px); opacity: 1; }
+.mode-tile.on { border-color: #4cc9f0; opacity: 1; box-shadow: 0 0 0 2px rgba(76, 201, 240, 0.35), 0 4px 0 rgba(0, 0, 0, 0.35); }
+.mode-tile.legend.on { border-color: #ffd36a; box-shadow: 0 0 16px rgba(255, 196, 60, 0.6), 0 4px 0 rgba(0, 0, 0, 0.35); background: linear-gradient(160deg, #5a3a08, var(--inner) 70%); }
+.mode-icon { font-size: 30px; }
+.mode-name { font-size: 26px; }
+.mode-desc { font-size: 16px; color: var(--muted); text-align: center; line-height: 1.05; }
+.coll-btn { width: 100%; }
+.how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin-top: 2px; }
+.how div { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; font-size: 16px; color: var(--muted); line-height: 1.05; }
+.how b { font-size: 24px; }
+.marquee { width: 100%; overflow: hidden; padding: 8px 0 10px; background: linear-gradient(180deg, transparent, rgba(10, 8, 20, 0.55)); --cw: 74px; mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+.marquee-track { display: flex; gap: 14px; width: max-content; animation: marquee 60s linear infinite; }
+.marquee-card { pointer-events: none; }
+@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.mode-badge { font-size: 22px; padding: 4px 16px; border-radius: 20px; background: rgba(20, 16, 34, 0.6); border: 2px solid rgba(255, 255, 255, 0.2); }
+.mode-badge.legend { color: #ffe48a; border-color: #ffd36a; box-shadow: 0 0 14px rgba(255, 196, 60, 0.5); }
+.legend-banner { background: linear-gradient(90deg, #8a5a08, #2c3e43 75%); border-color: #ffd36a; }
+@media (max-height: 760px) {
+  .home .logo { font-size: 90px; }
+  .home-fan { --cw: 120px; height: 240px; }
+  .marquee { display: none; }
+}

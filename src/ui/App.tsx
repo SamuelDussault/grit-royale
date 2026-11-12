@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { Card, CombatState, Player, ScoreEvent, ScoreResult } from '../engine/types'
-import { alivePlayers, waitingFor, type GameState } from '../engine/game'
+import { alivePlayers, waitingFor, type GameMode, type GameState } from '../engine/game'
 import type { Action, ActionResult } from '../engine/actions'
 import { Session } from '../net/session'
 import { sound } from './sound'
@@ -8,7 +8,7 @@ import { evaluateHand, handBase, HANDS } from '../engine/hands'
 import { collectRules } from '../engine/scoring'
 import { CURSE_LIST, getConsumable, jokerRoom, PLANET_LIST, SPECTRAL_LIST, RARE_SPECTRALS, TAROT_LIST } from '../engine/consumables'
 import type { ShopItem } from '../engine/shop'
-import { JOKER_LIST, sellValue } from '../engine/jokers'
+import { getJoker, JOKER_LIST, sellValue } from '../engine/jokers'
 import Background, { type Mood } from './Background'
 import { CardBack, PackArt, SvgDefs } from './art'
 import {
@@ -37,6 +37,9 @@ type Anim = {
   stage: 'events' | 'total'
   scoreBefore: number
 }
+const HOME_FAN = ['midas', 'phoenix', 'triboulet', 'blackHole', 'divineDie']
+const HOME_MARQUEE = ['joker', 'cashout', 'electric', 'gambler', 'vampire', 'megalith', 'voodoo', 'timeMaster', 'devilPact', 'champagne', 'impostor', 'pickpocket', 'kingHill', 'string', 'catalyst', 'wheelInv', 'gravedigger', 'bodyguard']
+
 type ModalState = null | { kind: 'deck' | 'levels' | 'matches' | 'collection' } | { kind: 'scout'; id: number } | { kind: 'target'; uid: number } | { kind: 'fate' }
 
 let popId = 1
@@ -79,6 +82,7 @@ export default function App() {
   const [modal, setModal] = useState<ModalState>(null)
   const [sortBy, setSortBy] = useState<'rank' | 'suit'>('rank')
   const [name, setName] = useState('')
+  const [gameMode, setGameMode] = useState<GameMode>('classic')
   const [anim, setAnim] = useState<Anim | null>(null)
   const [pops, setPops] = useState<Pop[]>([])
   const [juice, setJuice] = useState<Record<string, number>>({})
@@ -225,68 +229,105 @@ export default function App() {
       <>
         <Background mood={params.has('fond') ? 'combat' : mood} variant={Number(params.get('fond') ?? 0)} />
         <SvgDefs />
-        <div className="menu">
-          <h1 className="logo">
-            {'GRIT ROYALE'.split('').map((ch, i) => (
-              <span key={i} style={{ animationDelay: `${i * 0.08}s` }}>
-                {ch === ' ' ? ' ' : ch}
-              </span>
-            ))}
-          </h1>
-          <div className="menu-cards">
-            {[
-              { id: 1, rank: 14, suit: 'S' as const },
-              { id: 2, rank: 13, suit: 'H' as const, enh: 'gold' as const },
-              { id: 3, rank: 12, suit: 'D' as const, edition: 'poly' as const },
-            ].map((c, i) => (
-              <PlayingCard key={c.id} card={c} style={{ transform: `rotate(${(i - 1) * 10}deg) translateY(${i === 1 ? -14 : 0}px)` }} />
-            ))}
-            <JokerCard defId="joker" style={{ transform: 'rotate(14deg)' }} />
-          </div>
-          <div className="panel-ui menu-box">
-            <input placeholder="Ton nom" value={name} onChange={(e) => setName(e.target.value)} maxLength={14} />
-            {session ? (
-              <div className="connecting">
-                <div>{session.error || session.status}</div>
-                {session.error && (
-                  <button
-                    className="btn orange"
-                    onClick={() => {
-                      session.close()
-                      setSession(null)
-                      history.replaceState(null, '', location.pathname)
-                    }}
-                  >
-                    Retour
-                  </button>
-                )}
-              </div>
-            ) : joinId ? (
-              <div className="menu-btns">
-                <button className="btn green big" onClick={() => setSession(Session.join(joinId, name.trim() || 'Ami', localNet))}>
-                  REJOINDRE LA PARTIE
-                </button>
-              </div>
-            ) : (
-            <div className="menu-btns">
-              <button className="btn blue big" onClick={() => setSession(Session.solo(name.trim() || 'Toi'))}>
-                SOLO
-              </button>
-              <button className="btn green big" onClick={() => setSession(Session.host(name.trim() || 'Hôte', localNet))}>
-                EN LIGNE
-              </button>
-              <button className="btn orange big" onClick={() => setModal({ kind: 'collection' })}>
-                COLLECTION
-              </button>
+        <div className="home">
+          <header className="home-head">
+            <div className="home-suits">
+              <span className="s-red">♥</span>
+              <span>♠</span>
+              <span className="s-red">♦</span>
+              <span>♣</span>
             </div>
-            )}
-            <div className="rules">
-              <p>8 joueurs · 100 PV · le dernier debout gagne.</p>
-              <p>Chaque round : un duel contre un joueur au hasard. 4 mains, 3 défausses : le plus gros total gagne.</p>
-              <p>
-                Score = <span className="t-chips">jetons</span> × <span className="t-mult">Grit</span>. Entre les rounds : jokers (max 10),
-                tarots, planètes, paquets.
-              </p>
+            <h1 className="logo">
+              {'GRIT ROYALE'.split('').map((ch, i) => (
+                <span key={i} style={{ animationDelay: `${i * 0.08}s` }}>
+                  {ch === ' ' ? '\u00a0' : ch}
+                </span>
+              ))}
+            </h1>
+            <div className="tagline">Battle royale de jokers · 8 joueurs · 100 PV · un seul survivant</div>
+          </header>
+          <main className="home-main">
+            <div className="home-fan">
+              {HOME_FAN.map((id, i) => (
+                <div key={id} className="fan-card" style={{ '--i': i - 2 } as React.CSSProperties}>
+                  <JokerCard defId={id} tipBelow />
+                </div>
+              ))}
+            </div>
+            <div className="panel-ui home-panel">
+              <input placeholder="Ton nom" value={name} onChange={(e) => setName(e.target.value)} maxLength={14} />
+              {session ? (
+                <div className="connecting">
+                  <div>{session.error || session.status}</div>
+                  {session.error && (
+                    <button
+                      className="btn orange"
+                      onClick={() => {
+                        session.close()
+                        setSession(null)
+                        history.replaceState(null, '', location.pathname)
+                      }}
+                    >
+                      Retour
+                    </button>
+                  )}
+                </div>
+              ) : joinId ? (
+                <div className="menu-btns">
+                  <button className="btn green big" onClick={() => setSession(Session.join(joinId, name.trim() || 'Ami', localNet))}>
+                    REJOINDRE LA PARTIE
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="mode-pick">
+                    <button className={`mode-tile ${gameMode === 'classic' ? 'on' : ''}`} onClick={() => setGameMode('classic')}>
+                      <span className="mode-icon">🃏</span>
+                      <span className="mode-name">Classique</span>
+                      <span className="mode-desc">Tout le monde part de zéro</span>
+                    </button>
+                    <button className={`mode-tile legend ${gameMode === 'legendary' ? 'on' : ''}`} onClick={() => setGameMode('legendary')}>
+                      <span className="mode-icon">🌟</span>
+                      <span className="mode-name">Légendaire</span>
+                      <span className="mode-desc">Chacun commence avec un joker légendaire</span>
+                    </button>
+                  </div>
+                  <div className="menu-btns">
+                    <button className="btn blue big" onClick={() => setSession(Session.solo(name.trim() || 'Toi', gameMode))}>
+                      SOLO
+                    </button>
+                    <button className="btn green big" onClick={() => setSession(Session.host(name.trim() || 'Hôte', localNet, gameMode))}>
+                      EN LIGNE
+                    </button>
+                  </div>
+                  <button className="btn orange coll-btn" onClick={() => setModal({ kind: 'collection' })}>
+                    📖 COLLECTION
+                  </button>
+                </>
+              )}
+              <div className="how">
+                <div>
+                  <b>🛒</b>
+                  <span>Achète jokers, tarots et planètes</span>
+                </div>
+                <div>
+                  <b>⚔️</b>
+                  <span>Un duel par round : 4 mains, le plus gros score gagne</span>
+                </div>
+                <div>
+                  <b>👑</b>
+                  <span>Sois le dernier debout</span>
+                </div>
+              </div>
+            </div>
+          </main>
+          <div className="marquee">
+            <div className="marquee-track">
+              {[...HOME_MARQUEE, ...HOME_MARQUEE].map((id, i) => (
+                <div key={i} className="marquee-card">
+                  <JokerCard defId={id} />
+                </div>
+              ))}
             </div>
           </div>
         </div>
@@ -1125,6 +1166,20 @@ function ShopArea(props: {
     }
   }
 
+  // Mode Légendaire : présentation du légendaire de départ
+  if (!banner && gs.mode === 'legendary' && gs.round === 0) {
+    const leg = me.jokers.find((j) => getJoker(j.defId).rarity === 4)
+    if (leg)
+      banner = (
+        <div className="banner legend-banner">
+          <div className="banner-title">🌟 Mode Légendaire</div>
+          <div>
+            Tu commences avec <b className="t-money">{getJoker(leg.defId).name}</b> — et chaque adversaire a aussi le sien. Survole-le pour voir son effet !
+          </div>
+        </div>
+      )
+  }
+
   return (
     <div className="shop">
       {banner}
@@ -1390,6 +1445,9 @@ function LobbyRoom({ gs, meId, session, onStart, onCopy }: { gs: GameState; meId
   return (
     <div className="menu">
       <h1 className="logo small-logo">SALON</h1>
+      <div className={`mode-badge ${gs.mode === 'legendary' ? 'legend' : ''}`}>
+        {gs.mode === 'legendary' ? '🌟 Mode Légendaire : chacun commence avec un légendaire' : '🃏 Mode Classique'}
+      </div>
       <div className="panel-ui lobby-room">
         {isHost ? (
           <>

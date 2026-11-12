@@ -128,6 +128,8 @@ export interface GameState {
   ready: Record<number, boolean>
   lastReport?: RoundReport
   hostId: number
+  /** Mode de jeu : classique, ou tout le monde commence avec un légendaire. */
+  mode?: GameMode
   /** Minuterie (parties en ligne) : heure limite de la phase, selon l'horloge de l'hôte. */
   timers?: boolean
   deadline?: number
@@ -186,15 +188,27 @@ export function newLobby(hostName: string, seed = Date.now() % 1e9): GameState {
   return { rng, seed, round: 0, phase: 'lobby', players, matches: [], combats: {}, opponents: {}, shops: {}, packs: {}, ready: {}, hostId: 0 }
 }
 
+export type GameMode = 'classic' | 'legendary'
+
 /** Partie solo : crée et démarre directement. */
-export function newGame(playerName: string, seed?: number): GameState {
+export function newGame(playerName: string, seed?: number, mode: GameMode = 'classic'): GameState {
   const gs = newLobby(playerName, seed)
+  gs.mode = mode
   launchGame(gs)
   return gs
 }
 
 export function launchGame(gs: GameState) {
   if (gs.phase !== 'lobby') return
+  if (gs.mode === 'legendary') {
+    // Mode Légendaire : chaque joueur reçoit un légendaire différent dès le départ
+    const taken: string[] = []
+    for (const p of gs.players) {
+      const id = randomJokerId(gs.rng, 4, taken)
+      taken.push(id)
+      addJoker(p, newJoker(id), gs.rng)
+    }
+  }
   openShops(gs)
 }
 

@@ -4,7 +4,7 @@
 // via PeerJS) : aucun serveur à héberger, le service gratuit de PeerJS ne sert qu'à se trouver.
 import Peer, { type DataConnection } from 'peerjs'
 import { applyAction, type Action, type ActionResult } from '../engine/actions'
-import { checkTimeout, newGame, personalDeadline, newLobby, seatHuman, unseatHuman, type GameState } from '../engine/game'
+import { checkTimeout, newGame, personalDeadline, type GameMode, newLobby, seatHuman, unseatHuman, type GameState } from '../engine/game'
 
 export type Mode = 'solo' | 'host' | 'guest'
 
@@ -73,15 +73,16 @@ export class Session {
   }
 
   // ---------------- création ----------------
-  static solo(name: string): Session {
+  static solo(name: string, mode: GameMode = 'classic'): Session {
     const s = new Session('solo')
-    s.gs = newGame(name)
+    s.gs = newGame(name, undefined, mode)
     return s
   }
 
-  static host(name: string, local = false): Session {
+  static host(name: string, local = false, mode: GameMode = 'classic'): Session {
     const s = new Session('host')
     s.gs = newLobby(name)
+    s.gs.mode = mode
     s.gs.timers = true
     s.startClock()
     s.status = 'Création du salon…'

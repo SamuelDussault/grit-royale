@@ -190,6 +190,28 @@ export function newLobby(hostName: string, seed = Date.now() % 1e9): GameState {
 
 export type GameMode = 'classic' | 'legendary'
 
+/** Revanche : un nouveau salon avec les mêmes humains (mêmes places), même mode. */
+export function rematchState(old: GameState): GameState {
+  const host = old.players[old.hostId]
+  const gs = newLobby(host?.name ?? 'Hôte')
+  gs.hostId = old.hostId
+  gs.mode = old.mode
+  gs.timers = old.timers
+  for (const p of old.players) {
+    if (p.isBot) continue
+    const np = gs.players[p.id]
+    np.isBot = false
+    np.bot = undefined
+    np.name = p.name
+  }
+  // l'hôte n'est pas forcément à la place 0 : on remet un bot là s'il n'y a plus d'humain
+  if (old.hostId !== 0 && old.players[0].isBot) {
+    gs.players[0].isBot = true
+    gs.players[0].bot = botProfile(gs.rng)
+  }
+  return gs
+}
+
 /** Partie solo : crée et démarre directement. */
 export function newGame(playerName: string, seed?: number, mode: GameMode = 'classic'): GameState {
   const gs = newLobby(playerName, seed)

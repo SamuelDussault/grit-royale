@@ -40,7 +40,7 @@ type Anim = {
 const HOME_FAN = ['midas', 'phoenix', 'triboulet', 'blackHole', 'divineDie']
 const HOME_MARQUEE = ['joker', 'cashout', 'electric', 'gambler', 'vampire', 'megalith', 'voodoo', 'timeMaster', 'devilPact', 'champagne', 'impostor', 'pickpocket', 'kingHill', 'string', 'catalyst', 'wheelInv', 'gravedigger', 'bodyguard']
 
-type ModalState = null | { kind: 'deck' | 'levels' | 'matches' | 'collection' } | { kind: 'scout'; id: number } | { kind: 'target'; uid: number } | { kind: 'fate' }
+type ModalState = null | { kind: 'deck' | 'levels' | 'matches' | 'collection' } | { kind: 'scout'; id: number } | { kind: 'target'; uid: number } | { kind: 'fate' } | { kind: 'quit' }
 
 let popId = 1
 
@@ -351,6 +351,8 @@ export default function App() {
           meId={meId}
           session={session!}
           onStart={() => act({ type: 'start' })}
+          onMode={(mode) => act({ type: 'setMode', mode })}
+          onLeave={leave}
           onCopy={() => {
             navigator.clipboard?.writeText(session!.inviteLink)
             toast('Lien copié !')
@@ -378,10 +380,11 @@ export default function App() {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length >= 5 ? s : [...s, id]))
   }
 
-  const leave = () => {
+  function leave() {
     session?.close()
     setSession(null)
     setSelected([])
+    setModal(null)
     history.replaceState(null, '', location.pathname)
   }
 
@@ -644,7 +647,12 @@ export default function App() {
           <button className="btn orange tall" onClick={() => setModal({ kind: 'deck' })}>
             Paquet
           </button>
-          <SoundButtons />
+          <div className="mini-btns">
+            <SoundButtons />
+            <button className="btn sm red" title="Menu / quitter la partie" onClick={() => setModal({ kind: 'quit' })}>
+              ☰
+            </button>
+          </div>
         </div>
         <div className="stats">
           <div className="box stat">
@@ -756,7 +764,7 @@ export default function App() {
           )}
 
           {gs.phase === 'over' && (
-            <GameOver gs={gs} meId={meId} onRestart={() => leave()} />
+            <GameOver gs={gs} meId={meId} mode={session!.mode} onRematch={() => session!.rematch()} onMenu={leave} />
           )}
         </div>
       </div>
@@ -797,6 +805,55 @@ export default function App() {
       {modal?.kind === 'scout' && (
         <Modal title={gs.players[modal.id].name} onClose={() => setModal(null)}>
           <ScoutView player={gs.players[modal.id]} />
+        </Modal>
+      )}
+      {modal?.kind === 'quit' && (
+        <Modal title="Menu" onClose={() => setModal(null)}>
+          <div className="quit-box">
+            <p>
+              {session!.mode === 'solo'
+                ? 'Quitter maintenant abandonne ta partie en cours.'
+                : session!.mode === 'host'
+                  ? 'Tu es l’hôte : si tu quittes, la partie s’arrête pour tout le monde.'
+                  : 'Si tu quittes, un bot reprend ta place dans la partie.'}
+            </p>
+            <div className="over-btns">
+              <button className="btn blue big" onClick={() => setModal(null)}>
+                ▶ Continuer
+              </button>
+              {session!.mode === 'solo' && (
+                <button
+                  className="btn green big"
+                  onClick={() => {
+                    setModal(null)
+                    setSelected([])
+                    session!.rematch()
+                  }}
+                >
+                  🔁 Recommencer
+                </button>
+              )}
+              <button
+                className="btn red big"
+                onClick={() => {
+                  setModal(null)
+                  leave()
+                }}
+              >
+                🏠 Quitter au menu
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+      {session?.error && session.mode === 'guest' && (
+        <Modal title="Connexion perdue" onClose={leave}>
+          <div className="quit-box">
+            <p>{session.error}</p>
+            <button className="btn orange big" onClick={leave}>
+              🏠 Retour au menu
+            </button>
+          </div>
         </Modal>
       )}
       {modal?.kind === 'fate' && gs.combats[meId] && (
@@ -1284,15 +1341,16 @@ function MatchList({ gs, meId }: { gs: GameState; meId: number }) {
   )
 }
 
-function GameOver({ gs, meId, onRestart }: { gs: GameState; meId: number; onRestart: () => void }) {
+function GameOver({ gs, meId, mode, onRematch, onMenu }: { gs: GameState; meId: number; mode: string; onRematch: () => void; onMenu: () => void }) {
   const me = gs.players[meId]
   const won = me.placement === 1
   const ranking = [...gs.players].sort((a, b) => (a.placement || 99) - (b.placement || 99))
+  const humans = gs.players.filter((p) => !p.isBot).length
   return (
     <div className="gameover panel-ui">
       <div className={`stamp static ${won ? 'win' : 'lose'}`}>{won ? 'VICTOIRE ROYALE' : `${me.placement}e PLACE`}</div>
       <p className="muted">
-        {gs.round} rounds · {me.stats.roundsWon} duels gagnés
+        {gs.round} rounds · {me.stats.roundsWon} duels gagnés · mode {gs.mode === 'legendary' ? 'Légendaire' : 'Classique'}
       </p>
       <div className="ranking">
         {ranking.map((p) => (
@@ -1301,14 +1359,30 @@ function GameOver({ gs, meId, onRestart }: { gs: GameState; meId: number; onRest
             <span className="avatar" style={{ background: avatarColor(p.id) }}>
               {p.name[0]}
             </span>
-            <span>{p.name}</span>
+            <span>
+              {p.name}
+              {!p.isBot && ' 👤'}
+            </span>
             <span className="muted small">{p.jokers.length} jokers</span>
           </div>
         ))}
       </div>
-      <button className="btn blue big" onClick={onRestart}>
-        Nouvelle partie
-      </button>
+      <div className="over-btns">
+        {mode === 'solo' && (
+          <button className="btn blue big" onClick={onRematch}>
+            🔁 Rejouer
+          </button>
+        )}
+        {mode === 'host' && (
+          <button className="btn green big" onClick={onRematch}>
+            🔁 Revanche {humans > 1 ? `avec les mêmes ${humans} joueurs` : ''}
+          </button>
+        )}
+        {mode === 'guest' && <div className="muted">En attente de l’hôte pour une revanche…</div>}
+        <button className="btn orange big" onClick={onMenu}>
+          🏠 Menu principal
+        </button>
+      </div>
     </div>
   )
 }
@@ -1440,14 +1514,41 @@ function PackArtBig({ kind, size }: { kind: NonNullable<GameState['packs'][numbe
 }
 
 // ===================== SALLE D'ATTENTE / ATTENTE =====================
-function LobbyRoom({ gs, meId, session, onStart, onCopy }: { gs: GameState; meId: number; session: Session; onStart: () => void; onCopy: () => void }) {
+function LobbyRoom({
+  gs,
+  meId,
+  session,
+  onStart,
+  onCopy,
+  onMode,
+  onLeave,
+}: {
+  gs: GameState
+  meId: number
+  session: Session
+  onStart: () => void
+  onCopy: () => void
+  onMode: (m: GameMode) => void
+  onLeave: () => void
+}) {
   const isHost = session.mode === 'host'
   return (
     <div className="menu">
       <h1 className="logo small-logo">SALON</h1>
-      <div className={`mode-badge ${gs.mode === 'legendary' ? 'legend' : ''}`}>
-        {gs.mode === 'legendary' ? '🌟 Mode Légendaire : chacun commence avec un légendaire' : '🃏 Mode Classique'}
-      </div>
+      {isHost ? (
+        <div className="mode-pick lobby-modes">
+          <button className={`mode-tile ${gs.mode !== 'legendary' ? 'on' : ''}`} onClick={() => onMode('classic')}>
+            <span className="mode-name">🃏 Classique</span>
+          </button>
+          <button className={`mode-tile legend ${gs.mode === 'legendary' ? 'on' : ''}`} onClick={() => onMode('legendary')}>
+            <span className="mode-name">🌟 Légendaire</span>
+          </button>
+        </div>
+      ) : (
+        <div className={`mode-badge ${gs.mode === 'legendary' ? 'legend' : ''}`}>
+          {gs.mode === 'legendary' ? '🌟 Mode Légendaire : chacun commence avec un légendaire' : '🃏 Mode Classique'}
+        </div>
+      )}
       <div className="panel-ui lobby-room">
         {isHost ? (
           <>
@@ -1480,6 +1581,10 @@ function LobbyRoom({ gs, meId, session, onStart, onCopy }: { gs: GameState; meId
           </button>
         )}
         <div className="muted small">Un ami peut aussi rejoindre en cours de partie : il reprend un bot encore en vie.</div>
+        {!isHost && session.error && <div className="t-red">{session.error}</div>}
+        <button className="btn orange" onClick={onLeave}>
+          ← {isHost ? 'Fermer le salon' : 'Quitter le salon'}
+        </button>
       </div>
     </div>
   )

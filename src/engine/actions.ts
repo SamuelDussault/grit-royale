@@ -3,7 +3,7 @@ import type { Card, CombatState, JokerInst, Player, ScoreResult } from './types'
 import { discardCards, playHand } from './combat'
 import { applyConsumable, getConsumable, useBlocker, type UseEnv } from './consumables'
 import { buy, pickPackOption, reroll, sellConsumable, sellJoker, toggleLock } from './shop'
-import { carouselPick, launchGame, maybeAdvance, type GameState } from './game'
+import { carouselPick, launchGame, maybeAdvance, type GameMode, type GameState } from './game'
 import { pickShopItem } from './bot'
 import { getJoker, jokersGone } from './jokers'
 
@@ -24,6 +24,7 @@ export type Action =
   | { type: 'ready' }
   | { type: 'finishCombat' }
   | { type: 'rewind' }
+  | { type: 'setMode'; mode: GameMode }
   | { type: 'feed'; uid: number }
   | { type: 'devour'; uid?: number; key?: number }
   | { type: 'fate'; ids: number[] }
@@ -58,6 +59,10 @@ export function applyAction(gs: GameState, pid: number, a: Action): ActionResult
   if (!me) return { error: 'Joueur inconnu' }
   try {
     switch (a.type) {
+      case 'setMode':
+        if (pid !== gs.hostId || gs.phase !== 'lobby') return { error: 'Seul l’hôte peut changer le mode' }
+        gs.mode = a.mode
+        return {}
       case 'start':
         if (pid !== gs.hostId) return { error: 'Seul l’hôte peut lancer la partie' }
         launchGame(gs)

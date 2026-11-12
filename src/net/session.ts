@@ -4,7 +4,7 @@
 // via PeerJS) : aucun serveur à héberger, le service gratuit de PeerJS ne sert qu'à se trouver.
 import Peer, { type DataConnection } from 'peerjs'
 import { applyAction, type Action, type ActionResult } from '../engine/actions'
-import { checkTimeout, newGame, personalDeadline, type GameMode, newLobby, seatHuman, unseatHuman, type GameState } from '../engine/game'
+import { checkTimeout, newGame, personalDeadline, rematchState, type GameMode, newLobby, seatHuman, unseatHuman, type GameState } from '../engine/game'
 
 export type Mode = 'solo' | 'host' | 'guest'
 
@@ -216,6 +216,15 @@ export class Session {
     this.broadcast()
     this.changed()
     return Promise.resolve(res)
+  }
+
+  /** Revanche : solo → nouvelle partie tout de suite ; hôte → retour au salon avec les mêmes joueurs. */
+  rematch() {
+    if (!this.gs || this.mode === 'guest') return
+    if (this.mode === 'solo') this.gs = newGame(this.gs.players[this.meId].name, undefined, this.gs.mode)
+    else this.gs = rematchState(this.gs)
+    this.broadcast()
+    this.changed()
   }
 
   close() {

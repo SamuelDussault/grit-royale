@@ -206,7 +206,7 @@ export default function App() {
   if (!gs) {
     return (
       <>
-        <Background mood={mood} />
+        <Background mood={params.has('fond') ? 'combat' : mood} variant={Number(params.get('fond') ?? 0)} />
         <SvgDefs />
         <div className="menu">
           <h1 className="logo">
@@ -575,7 +575,7 @@ export default function App() {
 
   return (
     <>
-      <Background mood={mood} />
+      <Background mood={mood} variant={Math.max(0, gs.round - 1)} />
       <SvgDefs />
       <div className="game">
         {sidebar}

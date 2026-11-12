@@ -1257,6 +1257,22 @@ const SCENES: Record<string, Scene> = {
     p.ell(30, 3, 3, 4, hex('#c9a46a'), Z.top)
     for (const [x, y, r] of [[14, 8, 1.5], [36, 12, 1.2], [10, 18, 1], [38, 22, 1.4], [24, 6, 1]] as [number, number, number][]) p.ell(x, y, r, r, hex('#fff2b0'), Z.top)
   },
+  cashout: (p) => {
+    p.bg(hex('#14261c'), 'rays', hex('#1a3024'))
+    // pile de jetons qui grimpe
+    for (let i = 0; i < 7; i++) p.ell(10, 70 - i * 4, 7, 2.6, i % 2 ? C.red : C.pure, Z.mid)
+    for (let i = 0; i < 4; i++) p.ell(37, 70 - i * 4, 7, 2.6, i % 2 ? C.blue : C.pure, Z.mid)
+    p.coin(23.5, 72, 5)
+    // flèche qui monte
+    p.poly([[20, 46], [27, 46], [27, 30], [32, 30], [23.5, 18], [15, 30], [20, 30]], C.green, Z.front)
+    // gros bouton
+    p.rect(6, 2, 35, 14, C.darkred, Z.mid)
+    p.rect(8, 3, 31, 11, C.red, Z.front)
+    p.text('CASH', 12, 4, C.pure, Z.detail)
+    p.text('OUT', 14, 9, C.yellow, Z.detail)
+    p.sparkle(42, 24, C.yellow)
+    p.sparkle(5, 34, C.yellow)
+  },
   promethee: (p) => {
     p.bg(hex('#1e1420'), 'rays', hex('#2a1a28'))
     p.poly([[20, 40], [27, 40], [25, 78], [22, 78]], hex('#8b5a2b'), Z.mid)
@@ -1283,7 +1299,7 @@ const SCENES: Record<string, Scene> = {
   },
 }
 
-const KEEP_BG = new Set(['megalith', 'wheelInv', 'timeMaster', 'devilPact', 'gravedigger', 'promethee', 'pandora', 'voodoo', 'doubleEdge', 'alchemist', 'greenBill', 'pickpocket', 'vengeance', 'kingHill', 'lastBreath', 'saboteur', 'ghostHunter', 'supernova', 'constellation', 'rocket', 'toTheMoon', 'shootMoon', 'campfire', 'hack', 'summit', 'business', 'drivers', 'rideBus', 'scary', 'sock', 'golden', 'steelJoker', 'hologram', 'vampire', 'blueprint', 'dusk', 'hotStreak', 'canio', 'chicot', 'triboulet', 'wrathful', 'cardSharp', 'stencil', 'glassJoker'])
+const KEEP_BG = new Set(['cashout', 'megalith', 'wheelInv', 'timeMaster', 'devilPact', 'gravedigger', 'promethee', 'pandora', 'voodoo', 'doubleEdge', 'alchemist', 'greenBill', 'pickpocket', 'vengeance', 'kingHill', 'lastBreath', 'saboteur', 'ghostHunter', 'supernova', 'constellation', 'rocket', 'toTheMoon', 'shootMoon', 'campfire', 'hack', 'summit', 'business', 'drivers', 'rideBus', 'scary', 'sock', 'golden', 'steelJoker', 'hologram', 'vampire', 'blueprint', 'dusk', 'hotStreak', 'canio', 'chicot', 'triboulet', 'wrathful', 'cardSharp', 'stencil', 'glassJoker'])
 
 /** Dessine la scène d'un joker (sans la convertir en image) — utile pour les tests. */
 export function paintJoker(defId: string): Painter | null {

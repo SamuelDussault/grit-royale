@@ -10,6 +10,8 @@ export const RARITY_NAME: Record<Rarity, string> = { 1: 'Commun', 2: 'Peu commun
 export interface RoundEndInfo {
   won: boolean
   rng: Rng
+  /** Vrai duel (pas un mini-boss) et pas une égalité. */
+  duel?: boolean
 }
 
 export interface JokerDef {
@@ -43,6 +45,8 @@ export interface JokerDef {
 }
 
 const rankShort = (r: number) => (r <= 10 ? String(r) : ({ 11: 'Valet', 12: 'Dame', 13: 'Roi', 14: 'As' } as Record<number, string>)[r])
+/** Le Cash-Out : ×1.1 après 1 défaite, ×2.5 après 5, ×6.5 après 10, ×12.5 après 15. */
+export const cashoutX = (n: number) => 1 + 0.05 * n * (n + 1)
 const faceVal = (r: number) => (r === 14 ? 11 : r >= 11 ? 10 : r)
 const st = (j: JokerInst, k: string, d = 0) => j.state[k] ?? d
 
@@ -1222,6 +1226,27 @@ const LIST: JokerDef[] = [
       if (ctx.combat.handScores.length === 0) ctx.xMult(4, l)
     },
     onRoundEnd: () => ({ destroy: true, msg: 'Le Bouchon de Champagne a sauté !' }),
+  },
+
+  {
+    id: 'cashout',
+    name: 'Le Cash-Out',
+    rarity: 3,
+    cost: 8,
+    pvp: true,
+    desc: (j) =>
+      j.state.locked
+        ? `Encaissé ! ×${cashoutX(st(j, 'n')).toFixed(2)} Grit pour toujours`
+        : `Chaque duel perdu d’affilée fait grimper son Grit, de plus en plus vite. À ta première victoire, la valeur est encaissée pour toujours (actuel : ×${cashoutX(st(j, 'n')).toFixed(2)}, ${st(j, 'n')} défaite${st(j, 'n') > 1 ? 's' : ''} de suite)`,
+    onJoker: (ctx, j, l) => ctx.xMult(cashoutX(st(j, 'n')), l),
+    onRoundEnd: (_p, j, { won, duel }) => {
+      if (j.state.locked || !duel) return
+      if (won) {
+        j.state.locked = 1
+        return { msg: `Cash-Out encaissé : ×${cashoutX(st(j, 'n')).toFixed(2)} Grit pour toujours !` }
+      }
+      j.state.n = st(j, 'n') + 1
+    },
   },
 
   // ================= NOUVEAUX : LÉGENDAIRES =================

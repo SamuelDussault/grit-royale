@@ -628,14 +628,14 @@ function resolveRound(gs: GameState) {
       }
     }
     for (const j of [...p.jokers]) {
-      const r = getJoker(j.defId).onRoundEnd?.(p, j, { won, rng: gs.rng })
+      const r = getJoker(j.defId).onRoundEnd?.(p, j, { won, rng: gs.rng, duel: !gs.boss && !ties.has(p.id) })
       if (!r) continue
       if (r.money) add(getJoker(j.defId).name, r.money)
       if (r.destroy) {
         p.jokers = p.jokers.filter((x) => x !== j)
         jokersGone(p)
         if (r.msg) msg(p.id, r.msg)
-      }
+      } else if (r.msg) msg(p.id, r.msg)
     }
     // L'Usurier : chaque $ dû coûte 1 PV
     if (p.debt) {

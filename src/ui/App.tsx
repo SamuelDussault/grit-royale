@@ -1217,9 +1217,6 @@ function SoundButtons() {
   useEffect(() => sound.subscribe(force), [])
   return (
     <div className="sound-btns">
-      <button className={`btn sm ${sound.settings.music ? 'blue' : 'off'}`} onClick={() => sound.toggle('music')} title="Musique">
-        ♪
-      </button>
       <button className={`btn sm ${sound.settings.sfx ? 'blue' : 'off'}`} onClick={() => sound.toggle('sfx')} title="Effets sonores">
         🔊
       </button>

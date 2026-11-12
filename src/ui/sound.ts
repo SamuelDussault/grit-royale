@@ -1,6 +1,5 @@
 // Sons du jeu, entièrement synthétisés (Web Audio) : aucun fichier à charger.
 // - Effets : sélection, jeu de la main, chaque bonus (la note monte à chaque effet), achats…
-// - Musique de fond : boucle d'accords douce générée en direct.
 
 type Settings = { music: boolean; sfx: boolean }
 
@@ -21,9 +20,6 @@ class SoundEngine {
   private master?: GainNode
   private sfxGain?: GainNode
   private musicGain?: GainNode
-  private musicTimer?: number
-  private nextBeat = 0
-  private beat = 0
   private listeners = new Set<() => void>()
 
   subscribe(cb: () => void) {
@@ -48,7 +44,6 @@ class SoundEngine {
       this.musicGain.connect(this.master)
     }
     if (this.ctx.state === 'suspended') this.ctx.resume()
-    if (!this.musicTimer) this.startMusic()
   }
 
   toggle(kind: 'music' | 'sfx') {
@@ -168,54 +163,6 @@ class SoundEngine {
   }
   tick() {
     this.tone(1200, 0.04, 'square', 0.08)
-  }
-
-  // ---------------- musique ----------------
-  private startMusic() {
-    if (!this.ctx) return
-    this.nextBeat = this.ctx.currentTime + 0.1
-    this.musicTimer = window.setInterval(() => this.schedule(), 100)
-  }
-
-  private note(freq: number, t: number, dur: number, type: OscillatorType, vol: number, cutoff = 1800) {
-    const ctx = this.ctx!
-    const o = ctx.createOscillator()
-    const f = ctx.createBiquadFilter()
-    const g = ctx.createGain()
-    o.type = type
-    o.frequency.value = freq
-    f.type = 'lowpass'
-    f.frequency.value = cutoff
-    g.gain.setValueAtTime(0.0001, t)
-    g.gain.exponentialRampToValueAtTime(vol, t + 0.02)
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur)
-    o.connect(f).connect(g).connect(this.musicGain!)
-    o.start(t)
-    o.stop(t + dur + 0.05)
-  }
-
-  private schedule() {
-    const ctx = this.ctx!
-    const spb = 60 / 84 / 2 // croches à 84 BPM
-    // progression : la mineur – fa – do – sol (style lounge un peu jazzy)
-    const chords = [
-      [220, 261.6, 329.6, 392],
-      [174.6, 220, 261.6, 329.6],
-      [130.8, 196, 261.6, 329.6],
-      [196, 246.9, 293.7, 349.2],
-    ]
-    while (this.nextBeat < ctx.currentTime + 0.3) {
-      const b = this.beat
-      const chord = chords[Math.floor(b / 16) % 4]
-      const t = this.nextBeat
-      if (b % 16 === 0) for (const f of chord) this.note(f, t, spb * 15, 'sawtooth', 0.035, 900)
-      if (b % 4 === 0) this.note(chord[0] / 2, t, spb * 3, 'sine', 0.22, 400)
-      if (b % 4 === 2) this.note(chord[0] / 2, t, spb * 1.5, 'sine', 0.12, 400)
-      const arp = [0, 2, 1, 3, 2, 1, 3, 2]
-      if (b % 2 === 0 || b % 8 === 7) this.note(chord[arp[b % 8]] * 2, t, spb * 1.6, 'triangle', 0.05, 2400)
-      this.nextBeat += spb
-      this.beat++
-    }
   }
 }
 

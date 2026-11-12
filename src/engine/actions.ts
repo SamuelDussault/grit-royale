@@ -2,7 +2,7 @@
 import type { ScoreResult } from './types'
 import { discardCards, playHand } from './combat'
 import { applyConsumable, getConsumable, useBlocker, type UseEnv } from './consumables'
-import { buy, pickPackOption, reroll, sellConsumable, sellJoker } from './shop'
+import { buy, pickPackOption, reroll, sellConsumable, sellJoker, toggleLock } from './shop'
 import { launchGame, maybeAdvance, type GameState } from './game'
 import { pickShopItem } from './bot'
 
@@ -16,6 +16,7 @@ export type Action =
   | { type: 'moveJoker'; from: number; to: number }
   | { type: 'buy'; key: number }
   | { type: 'reroll' }
+  | { type: 'lock'; key: number }
   | { type: 'pick'; index: number; ids: number[] }
   | { type: 'skipPack' }
   | { type: 'ready' }
@@ -102,6 +103,12 @@ export function applyAction(gs: GameState, pid: number, a: Action): ActionResult
         if (gs.phase !== 'shop' || gs.ready[pid]) return { error: 'La boutique est fermée' }
         const err = reroll(me, gs.shops[pid], gs.rng)
         return err ? { error: err } : {}
+      }
+      case 'lock': {
+        if (gs.phase !== 'shop' || gs.ready[pid]) return { error: 'La boutique est fermée' }
+        const r = toggleLock(gs.shops[pid], a.key)
+        if (r === null) return { error: 'Impossible de verrouiller cet article' }
+        return { msg: r ? 'Verrouillé : il restera au prochain round' : 'Déverrouillé' }
       }
       case 'pick': {
         const pack = gs.packs[pid]

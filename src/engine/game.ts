@@ -144,12 +144,13 @@ export function waitingFor(gs: GameState): Player[] {
 }
 
 function openShops(gs: GameState) {
+  const prev = gs.shops
   gs.shops = {}
   gs.packs = {}
   gs.ready = {}
   gs.phase = 'shop'
   gs.deadline = gs.timers ? Date.now() + CONFIG.shopTime : undefined
-  for (const p of alivePlayers(gs)) gs.shops[p.id] = newShop(p, gs.rng)
+  for (const p of alivePlayers(gs)) gs.shops[p.id] = newShop(p, gs.rng, prev[p.id])
   for (const p of alivePlayers(gs)) if (p.isBot) botShop(p, gs.shops[p.id], gs.rng, gs.round + 1)
   maybeAdvance(gs)
 }

@@ -95,6 +95,8 @@ export interface ShopItem {
   packKind?: PackKind
   packSize?: PackSize
   sold?: boolean
+  /** Verrouillé : reste dans la boutique (relances et round suivant) jusqu'à l'achat. */
+  locked?: boolean
 }
 
 export interface ShopState {
@@ -184,10 +186,22 @@ export function baseRerollCost(p: Player): number {
   return p.vouchers.includes('reroll') ? 1 : 2
 }
 
-export function newShop(p: Player, rng: Rng): ShopState {
-  const cards = Array.from({ length: shopCardSlots(p) }, () => rollShopCard(p, rng))
-  const packs = [rollPack(p, rng), rollPack(p, rng)]
-  return { cards, packs, voucher: rollVoucher(p, rng), rerollCost: baseRerollCost(p), rerolls: 0 }
+/** Garde l'article s'il est verrouillé et pas encore acheté, sinon en tire un nouveau. */
+const keep = (old: ShopItem | undefined, roll: () => ShopItem | undefined) => (old && old.locked && !old.sold ? old : roll())
+
+export function newShop(p: Player, rng: Rng, prev?: ShopState): ShopState {
+  const cards = Array.from({ length: shopCardSlots(p) }, (_, i) => keep(prev?.cards[i], () => rollShopCard(p, rng))!)
+  const packs = [0, 1].map((i) => keep(prev?.packs[i], () => rollPack(p, rng))!)
+  const voucher = prev?.voucher?.locked && !prev.voucher.sold ? prev.voucher : rollVoucher(p, rng)
+  return { cards, packs, voucher, rerollCost: baseRerollCost(p), rerolls: 0 }
+}
+
+/** Verrouille / déverrouille un article de la boutique. */
+export function toggleLock(shop: ShopState, key: number): boolean | null {
+  const item = [...shop.cards, ...shop.packs, ...(shop.voucher ? [shop.voucher] : [])].find((i) => i.key === key)
+  if (!item || item.sold) return null
+  item.locked = !item.locked
+  return item.locked
 }
 
 export function reroll(p: Player, shop: ShopState, rng: Rng): string | null {
@@ -195,7 +209,7 @@ export function reroll(p: Player, shop: ShopState, rng: Rng): string | null {
   p.gold -= shop.rerollCost
   shop.rerolls++
   shop.rerollCost++
-  shop.cards = Array.from({ length: shopCardSlots(p) }, () => rollShopCard(p, rng))
+  shop.cards = Array.from({ length: shopCardSlots(p) }, (_, i) => keep(shop.cards[i], () => rollShopCard(p, rng))!)
   return null
 }
 

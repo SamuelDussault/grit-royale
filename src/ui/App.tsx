@@ -633,6 +633,7 @@ export default function App() {
                 })
               }
               onReroll={() => act({ type: 'reroll' }, (r) => !r.error && sound.reroll())}
+              onLock={(item) => act({ type: 'lock', key: item.key }, (r) => !r.error && sound.tick())}
               onPick={(i) => act({ type: 'pick', index: i, ids: selected }, (r) => !r.error && setSelected([]))}
               onSkipPack={() => act({ type: 'skipPack' })}
               onReady={() => {
@@ -842,6 +843,7 @@ function ShopArea(props: {
   onMatches: () => void
   onBuy: (item: ShopItem) => unknown
   onReroll: () => unknown
+  onLock: (item: ShopItem) => unknown
   onPick: (i: number) => unknown
   onSkipPack: () => unknown
   onReady: () => unknown
@@ -852,8 +854,17 @@ function ShopArea(props: {
   const rep = gs.lastReport
 
   const priced = (item: ShopItem, card: React.ReactNode) => (
-    <div key={item.key} className={`shop-item ${item.sold ? 'sold' : ''}`}>
+    <div key={item.key} className={`shop-item ${item.sold ? 'sold' : ''} ${item.locked ? 'locked' : ''}`}>
       <div className="price">{item.sold ? '—' : `${item.price} $`}</div>
+      {!item.sold && (
+        <button
+          className={`lock-btn ${item.locked ? 'on' : ''}`}
+          title={item.locked ? 'Déverrouiller' : 'Verrouiller : l’article reste dans ta boutique au prochain round (et pendant les relances)'}
+          onClick={() => props.onLock(item)}
+        >
+          {item.locked ? '🔒' : '🔓'}
+        </button>
+      )}
       {card}
       {!item.sold && (
         <button

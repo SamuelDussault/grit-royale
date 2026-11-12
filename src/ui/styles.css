@@ -398,3 +398,9 @@ button, input { font-family: var(--font); }
 .tip-float { position: fixed; z-index: 1000; pointer-events: none; animation: tipIn 0.1s ease-out; }
 .tip-float.above { transform: translateY(-100%); }
 @keyframes tipIn { from { opacity: 0; } }
+
+/* verrou de la boutique */
+.lock-btn { position: absolute; top: -26px; right: -14px; z-index: 6; width: 28px; height: 26px; border-radius: 7px; border: 2px solid var(--line); background: var(--inner); font-size: 15px; cursor: pointer; padding: 0; opacity: 0.55; }
+.lock-btn:hover { opacity: 1; }
+.lock-btn.on { opacity: 1; background: #b8860b; }
+.shop-item.locked .gcard-face { outline: 3px solid #f2b632; outline-offset: 2px; border-radius: 7px; }

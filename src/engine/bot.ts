@@ -170,6 +170,13 @@ export function botShop(p: Player, shop: ShopState, rng: Rng, round: number, oth
   const canSpend = (price: number) => p.gold - price >= reserve
 
   botUseConsumables(p, rng, others)
+  // Gluttonie : les bots en bonne santé la nourrissent
+  for (const j of p.jokers)
+    if (j.defId === 'gluttony' && j.state.r !== round && p.hp > 45) {
+      p.hp -= 5
+      j.state.r = round
+      j.state.g = (j.state.g ?? 0) + 5
+    }
 
   for (let pass = 0; pass < 4; pass++) {
     // jokers

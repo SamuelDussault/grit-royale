@@ -275,7 +275,7 @@ export function JokerCard(props: {
       dataId={props.inst ? `j${props.inst.uid}` : undefined}
       juice={props.juice}
       style={props.style}
-      className="jcard"
+      className={getJoker(props.defId).rarity === 4 ? 'jcard legendary' : 'jcard'}
       draggable={props.draggable}
       onDragStart={props.onDragStart}
       onDragOver={props.onDragOver}

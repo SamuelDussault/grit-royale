@@ -23,6 +23,7 @@ export type Action =
   | { type: 'ready' }
   | { type: 'finishCombat' }
   | { type: 'rewind' }
+  | { type: 'feed'; uid: number }
   | { type: 'loan'; amount: number }
 
 interface Snapshot {
@@ -86,6 +87,16 @@ export function applyAction(gs: GameState, pid: number, a: Action): ActionResult
         old.canRewind = false
         gs.combats[pid] = old
         return { msg: 'Le Maître du Temps : la dernière main est annulée, rejoue-la !' }
+      }
+      case 'feed': {
+        const j = me.jokers.find((x) => x.uid === a.uid && x.defId === 'gluttony')
+        if (!j || gs.phase !== 'shop' || gs.ready[pid]) return { error: 'Seulement en boutique' }
+        if (j.state.r === gs.round) return { error: 'Déjà nourrie dans cette boutique' }
+        if (me.hp <= 5) return { error: 'Pas assez de PV' }
+        me.hp -= 5
+        j.state.r = gs.round
+        j.state.g = (j.state.g ?? 0) + 5
+        return { msg: `Gluttonie dévore 5 PV : +${j.state.g} Grit` }
       }
       case 'loan': {
         if (gs.phase !== 'shop' || gs.ready[pid]) return { error: 'Seulement en boutique' }

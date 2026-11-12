@@ -38,6 +38,8 @@ export interface JokerDef {
   onElimination?(p: Player, j: JokerInst): number
   /** Quand le joker arrive chez le joueur (achat, paquet, carrousel…). */
   onAcquire?(p: Player, j: JokerInst, rng: Rng): string | void
+  /** N'apparaît jamais en boutique / paquet / carrousel (ex. Phénix, né des Cendres). */
+  hidden?: boolean
   damageBonus?: number
   damageTakenMult?: number
   /** Dégâts supplémentaires subis en cas de défaite. */
@@ -1273,6 +1275,60 @@ const LIST: JokerDef[] = [
       })
       return 'La boîte de Pandore est ouverte : ton paquet n’a plus que 15 figures améliorées !'
     },
+  },
+  {
+    id: 'divineDie',
+    name: 'Le Dé Divin',
+    rarity: 4,
+    cost: 20,
+    desc: () => 'À chaque main, lance un dé : 1-2 = ×0.5 Grit, 3-4 = ×2 Grit, 5-6 = ×4 Grit',
+    onJoker: (ctx, _j, l) => {
+      if (ctx.preview) return ctx.xMult(2, l) // estimation moyenne pour l'IA
+      const roll = ctx.rng.int(1, 6)
+      ctx.info(l, `Dé : ${roll}`)
+      ctx.xMult(roll <= 2 ? 0.5 : roll <= 4 ? 2 : 4, l)
+    },
+  },
+  {
+    id: 'chronomancer',
+    name: 'Le Chronomancien',
+    rarity: 4,
+    cost: 20,
+    desc: () => 'La première main de chaque combat est rejouée automatiquement avec les mêmes cartes (elle compte deux fois)',
+  },
+  {
+    id: 'emperor',
+    name: 'L’Empereur',
+    rarity: 4,
+    cost: 20,
+    pvp: true,
+    desc: (_j, p) =>
+      `×0.5 Grit par joker que tu possèdes (lui compris, à partir de ×1), mais tes défaites te coûtent autant de fois plus de dégâts qu’il y a de jokers${p ? ` (actuel : ×${(0.5 + 0.5 * p.jokers.length).toFixed(1)} Grit, dégâts ×${p.jokers.length})` : ''}`,
+    onJoker: (ctx, _j, l) => ctx.xMult(0.5 + 0.5 * ctx.player.jokers.length, l),
+  },
+  {
+    id: 'phoenixAshes',
+    name: 'Les Cendres du Phénix',
+    rarity: 4,
+    cost: 20,
+    desc: () => 'Inutile tant que tu es en vie. Si tu devais mourir, tu reviens à 20 PV et les cendres renaissent en Phénix (×3 Grit)',
+  },
+  {
+    id: 'phoenix',
+    name: 'Le Phénix',
+    rarity: 4,
+    cost: 20,
+    hidden: true,
+    desc: () => '×3 Grit. Renaît des Cendres du Phénix quand tu aurais dû mourir',
+    onJoker: (ctx, _j, l) => ctx.xMult(3, l),
+  },
+  {
+    id: 'gluttony',
+    name: 'Gluttonie',
+    rarity: 4,
+    cost: 20,
+    desc: (j) => `Une fois par boutique, tu peux sacrifier 5 PV pour lui donner +5 Grit pour toujours (actuel : +${st(j, 'g')} Grit)`,
+    onJoker: (ctx, j, l) => ctx.addMult(st(j, 'g'), l),
   },
 ]
 

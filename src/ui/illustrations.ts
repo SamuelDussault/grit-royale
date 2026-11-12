@@ -1,6 +1,7 @@
 // Une illustration originale par joker, dans l'esprit des cartes de Balatro.
 // Chaque scène dessine dans une grille 47 × 81 (voir painter.ts).
 import { C, hex, mix, mul, Painter, PH, PW, Z, type RGB } from './painter'
+import { HD_SCENES } from './legendaries'
 import { jester, miniJester, type JesterOpt } from './figures'
 
 type S = 'H' | 'D' | 'S' | 'C'
@@ -1302,7 +1303,22 @@ const SCENES: Record<string, Scene> = {
 const KEEP_BG = new Set(['cashout', 'megalith', 'wheelInv', 'timeMaster', 'devilPact', 'gravedigger', 'promethee', 'pandora', 'voodoo', 'doubleEdge', 'alchemist', 'greenBill', 'pickpocket', 'vengeance', 'kingHill', 'lastBreath', 'saboteur', 'ghostHunter', 'supernova', 'constellation', 'rocket', 'toTheMoon', 'shootMoon', 'campfire', 'hack', 'summit', 'business', 'drivers', 'rideBus', 'scary', 'sock', 'golden', 'steelJoker', 'hologram', 'vampire', 'blueprint', 'dusk', 'hotStreak', 'canio', 'chicot', 'triboulet', 'wrathful', 'cardSharp', 'stencil', 'glassJoker'])
 
 /** Dessine la scène d'un joker (sans la convertir en image) — utile pour les tests. */
+/** Cartes « full art » en double résolution (légendaires). */
+export const HD_W = 71
+export const HD_H = 95
+export function isFullArt(defId: string): boolean {
+  return defId in HD_SCENES
+}
+
 export function paintJoker(defId: string): Painter | null {
+  const hd = HD_SCENES[defId]
+  if (hd) {
+    // grille 71 × 95 (toute la carte) en 2 × 2 pixels par unité ; la zone de scène 47 × 81 reste centrée
+    const p = new Painter(2, HD_W, HD_H, 12, 7)
+    hd(p)
+    p.outline()
+    return p
+  }
   const scene = SCENES[defId]
   if (!scene) return null
   const p = new Painter()
@@ -1327,7 +1343,7 @@ export function jokerIllustration(defId: string): string | null {
 }
 
 export function hasIllustration(defId: string): boolean {
-  return defId in SCENES
+  return defId in SCENES || defId in HD_SCENES
 }
 
 export { PH, PW }

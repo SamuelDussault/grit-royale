@@ -7,7 +7,7 @@ import { getConsumable, PLANET_LIST, TAROT_LIST } from '../engine/consumables'
 import type { PackKind, PackSize } from '../engine/shop'
 import { FACES, mirrorEven, SPECIAL } from './sprites'
 import { JESTER_H, JESTER_W, jesterImage } from './jesterGen'
-import { jokerIllustration, PH as ILL_H, PW as ILL_W } from './illustrations'
+import { isFullArt, jokerIllustration, PH as ILL_H, PW as ILL_W } from './illustrations'
 
 export const W = 71
 export const H = 95
@@ -273,6 +273,42 @@ export function JokerArt({ defId, edition }: { defId: string; edition?: Edition 
 
   let art: React.ReactNode
   const ill = jokerIllustration(defId)
+  if (ill && isFullArt(defId)) {
+    // Légendaire : illustration pleine carte en double résolution + cadre doré
+    const gid = `leg-${defId}`
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} className="art legendary-art">
+        <defs>
+          <linearGradient id={gid} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#fff6c8" />
+            <stop offset="0.35" stopColor="#f2b632" />
+            <stop offset="0.6" stopColor="#ffe48a" />
+            <stop offset="1" stopColor="#b8791a" />
+          </linearGradient>
+          <clipPath id={`${gid}-clip`}>
+            <rect x="1" y="1" width={W - 2} height={H - 2} rx="5" />
+          </clipPath>
+        </defs>
+        <image href={ill} x={0} y={0} width={W} height={H} style={{ imageRendering: 'pixelated' }} clipPath={`url(#${gid}-clip)`} preserveAspectRatio="none" />
+        <rect x="1.6" y="1.6" width={W - 3.2} height={H - 3.2} rx="4.6" fill="none" stroke={`url(#${gid})`} strokeWidth="2.2" />
+        <rect x="3.2" y="3.2" width={W - 6.4} height={H - 6.4} rx="3.4" fill="none" stroke="#2a233a" strokeOpacity="0.55" strokeWidth="0.6" />
+        <g>
+          <rect x={W / 2 - 17} y={H - 10} width="34" height="7" rx="2" fill="#2a233a" stroke={`url(#${gid})`} strokeWidth="0.8" />
+          <text x={W / 2} y={H - 4.6} className="tiny" fill="#ffe48a" textAnchor="middle" style={{ fontSize: 6.4, letterSpacing: 0.4 }}>
+            LÉGENDAIRE
+          </text>
+        </g>
+        {d.pvp && (
+          <g>
+            <rect x={W / 2 - 11} y="3" width="22" height="7" rx="1.5" fill="#7a1f2b" />
+            <text x={W / 2} y="8.6" className="tiny" fill="#ffd6dc" textAnchor="middle" style={{ fontSize: 7 }}>
+              LOBBY
+            </text>
+          </g>
+        )}
+      </svg>
+    )
+  }
   if (ill) {
     // Carte façon Balatro : fond crème, illustration pleine carte, gros « JOKER » à empattements
     const letters = (

@@ -204,6 +204,14 @@ export function scoreHand(o: {
     if (self.edition === 'poly') ctx.xMult(1.5, `${name(self)} (Polychrome)`)
   }
 
+  // Le Chronomancien : la première main du combat est rejouée (elle compte deux fois)
+  if (ctx.combat.handScores.length === 0)
+    for (const j of player.jokers)
+      if (j.defId === 'chronomancer') {
+        ctx.cur = { joker: j.uid }
+        ctx.xMult(2, 'Le Chronomancien : main rejouée')
+      }
+
   // 5) Après : verre qui se brise, jokers qui s'usent
   if (!preview) {
     for (const c of ctx.scoring) {

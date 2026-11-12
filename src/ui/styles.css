@@ -432,3 +432,33 @@ button, input { font-family: var(--font); }
 .loan { padding: 10px 14px; margin-top: 10px; }
 .loan-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .loan-btns { display: flex; gap: 8px; }
+
+/* ---------- Légendaires full art ---------- */
+.gcard.legendary .gcard-face::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 7px;
+  pointer-events: none;
+  box-shadow: 0 0 12px 2px rgba(255, 200, 70, 0.75);
+  animation: legend-glow 2.6s ease-in-out infinite;
+}
+.gcard.legendary .gcard-face::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 6px;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 35%, rgba(255, 255, 255, 0.42) 46%, rgba(255, 230, 150, 0.25) 52%, transparent 63%);
+  background-size: 300% 100%;
+  mix-blend-mode: screen;
+  animation: legend-sheen 3.6s linear infinite;
+}
+@keyframes legend-sheen {
+  0% { background-position: 120% 0; }
+  55%, 100% { background-position: -120% 0; }
+}
+@keyframes legend-glow {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}

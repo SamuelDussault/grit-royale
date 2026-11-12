@@ -67,8 +67,8 @@ export function randomJokerId(rng: Rng, rarity?: 1 | 2 | 3 | 4, exclude: string[
     { item: 2 as const, w: 25 },
     { item: 3 as const, w: 5 },
   ])
-  const pool = JOKER_LIST.filter((d) => d.rarity === r && !exclude.includes(d.id))
-  return rng.pick(pool.length ? pool : JOKER_LIST.filter((d) => d.rarity === r)).id
+  const pool = JOKER_LIST.filter((d) => d.rarity === r && !d.hidden && !exclude.includes(d.id))
+  return rng.pick(pool.length ? pool : JOKER_LIST.filter((d) => d.rarity === r && !d.hidden)).id
 }
 
 /** Ajoute une carte au paquet (et en main si on est en combat). Fait évoluer l'Hologramme. */

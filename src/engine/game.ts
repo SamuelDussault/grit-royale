@@ -323,6 +323,8 @@ export function computeDamage(round: number, winnerScore: number, loserScore: nu
   let dmg = base + margin
   for (const j of winner.jokers) dmg += getJoker(j.defId).damageBonus ?? 0
   for (const j of loser.jokers) dmg *= getJoker(j.defId).damageTakenMult ?? 1
+  // L'Empereur : dégâts × nombre de jokers
+  for (const j of loser.jokers) if (j.defId === 'emperor') dmg *= loser.jokers.length
   for (const j of loser.jokers) dmg += getJoker(j.defId).damageTakenBonus ?? 0
   if (loser.vouchers.includes('fortress')) dmg -= 2
   return Math.max(1, Math.ceil(dmg))
@@ -644,6 +646,18 @@ function resolveRound(gs: GameState) {
     }
     for (const l of lines) p.gold += l.amount
     goldAll[p.id] = lines
+  }
+
+  // Cendres du Phénix : on renaît au lieu de mourir
+  for (const p of alivePlayers(gs)) {
+    if (p.hp > 0) continue
+    const ash = p.jokers.find((j) => j.defId === 'phoenixAshes')
+    if (!ash) continue
+    ash.defId = 'phoenix'
+    ash.state = {}
+    p.hp = 20
+    msg(p.id, 'Le Phénix renaît de ses cendres ! Tu reviens à 20 PV')
+    for (const o of gs.players) if (o.id !== p.id) msg(o.id, `${p.name} renaît de ses cendres !`)
   }
 
   // éliminations

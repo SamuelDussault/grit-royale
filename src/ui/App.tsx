@@ -414,15 +414,26 @@ export default function App() {
                 }}
                 overlay={
                   !busy && (
-                    <button
-                      className="btn green sell-btn"
-                      onClick={() => {
-                        sound.sell()
-                        act({ type: 'sellJoker', uid: j.uid }, () => setJokerSel(null))
-                      }}
-                    >
-                      Vendre <span className="t-money-dark">{sellValue(j)} $</span>
-                    </button>
+                    <div className="cons-btns">
+                      {j.defId === 'gluttony' && gs.phase === 'shop' && j.state.r !== gs.round && (
+                        <button
+                          className="btn red sell-btn"
+                          disabled={me.hp <= 5}
+                          onClick={() => act({ type: 'feed', uid: j.uid }, (r) => !r.error && sound.total())}
+                        >
+                          Nourrir −5 PV
+                        </button>
+                      )}
+                      <button
+                        className="btn green sell-btn"
+                        onClick={() => {
+                          sound.sell()
+                          act({ type: 'sellJoker', uid: j.uid }, () => setJokerSel(null))
+                        }}
+                      >
+                        Vendre <span className="t-money-dark">{sellValue(j)} $</span>
+                      </button>
+                    </div>
                   )
                 }
               />

@@ -369,4 +369,124 @@ export const HD_SCENES: Record<string, Scene> = {
     p.poly([[44, 78], [46, 78], [47, 48], [43, 54]], C.lgrey, Z.top)
     p.text('+5', -9, 80, C.yellow, Z.detail, 2)
   },
+  puppeteer: (p) => {
+    aura(p, 23.5, 40, hex('#6a2a8a'), hex('#12061c'), { rays: 14, rayCol: hex('#1c0a2a') })
+    // rideaux de théâtre
+    for (const side of [-1, 1]) {
+      const x0 = side < 0 ? -12 : 47
+      p.rect(x0, -7, 12, 95, hex('#a81c30'), Z.back)
+      for (let k = 0; k < 3; k++) p.fine(x0 + 3 + k * 3, -7, x0 + 3 + k * 3, 88, hex('#6a0d1c'), Z.detail)
+    }
+    p.rect(-12, -7, 71, 5, hex('#c8962e'), Z.mid)
+    // la marionnette
+    jester(p, { ca: C.red, cb: C.blue, collar: C.white, hat: 'horns3', eyes: 'x', mouth: 'o', arms: 'up' })
+    // barre de contrôle + mains gantées
+    p.rect(4, 0, 39, 3, hex('#8b5a2b'), Z.top)
+    p.rect(22, -6, 3, 10, hex('#8b5a2b'), Z.top)
+    p.ell(10, -2, 6, 4, C.pure, Z.top)
+    p.ell(37, -2, 6, 4, C.pure, Z.top)
+    // fils
+    for (const [x0, x1, y1] of [[6, 6, 70], [41, 41, 70], [16, 18, 20], [31, 29, 20], [23.5, 23.5, 10]] as const) p.fine(x0, 3, x1, y1, hex('#e8e0f8'), Z.detail)
+    p.text('TON JOKER', 5.5, 82, C.yellow, Z.detail)
+  },
+  ouroboros: (p) => {
+    aura(p, 23.5, 40, hex('#3a8a5a'), hex('#06160c'), { rays: 30, rayCol: hex('#0a2414') })
+    dust(p, 50, hex('#b8ffd0'), 9)
+    // serpent en anneau
+    const cx = 23.5
+    const cy = 40
+    for (let i = 0; i < 64; i++) {
+      const a = (i / 64) * Math.PI * 2 - Math.PI / 2 + 0.35
+      const r = 6.2 - (i / 64) * 3.2
+      p.ell(cx + Math.cos(a) * 24, cy + Math.sin(a) * 28, r, r, i % 4 < 2 ? hex('#2fae5a') : hex('#c8a22e'), Z.mid)
+    }
+    // tête qui mord la queue
+    const hx = cx + Math.cos(-Math.PI / 2 + 0.2) * 24
+    const hy = cy + Math.sin(-Math.PI / 2 + 0.2) * 28
+    p.ell(hx, hy, 7, 5.5, hex('#2fae5a'), Z.front)
+    p.ell(hx - 3, hy - 2, 1.6, 1.6, C.yellow, Z.detail, true)
+    p.dot(hx - 3, hy - 2, C.ink)
+    p.poly([[hx - 8, hy + 1], [hx - 3, hy + 2], [hx - 8, hy + 4]], C.pure, Z.top)
+    // gemme au centre
+    p.poly([[cx, 28], [cx + 9, 40], [cx, 52], [cx - 9, 40]], hex('#4cd17a'), Z.mid)
+    p.poly([[cx, 32], [cx + 5, 40], [cx, 48], [cx - 5, 40]], hex('#b8ffd0'), Z.front)
+    p.text('+×0.2', 13, 78, C.yellow, Z.detail)
+  },
+  midas: (p) => {
+    aura(p, 23.5, 34, hex('#fff2b0'), hex('#7a5208'), { rays: 22, rayCol: hex('#f2c94a') })
+    dust(p, 70, C.pure, 10, 0.3)
+    jester(p, { ca: C.gold, cb: hex('#d9a520'), collar: hex('#fff2b0'), face: hex('#f6d77a'), hair: hex('#b8791a'), hat: 'crown', eyes: 'dollar', mouth: 'grin', arms: 'hold' })
+    // cartes qui deviennent en or au contact
+    const goldCard = (x: number, y: number, rank: string) => {
+      p.rect(x, y, 13, 18, C.gold, Z.top)
+      p.text(rank, x + 1.5, y + 1.5, hex('#7a5208'), Z.detail)
+      p.suit('D', x + 6.5, y + 10, 1, hex('#7a5208'), Z.detail)
+    }
+    goldCard(-9, 60, 'K')
+    goldCard(43, 60, 'A')
+    // gouttes d'or
+    for (const [x, y] of [[-4, 80], [-1, 84], [48, 81], [51, 85]] as const) p.ell(x, y, 1.2, 1.8, C.gold, Z.top)
+  },
+  fateEye: (p) => {
+    aura(p, 23.5, 36, hex('#3a2a7a'), hex('#05030f'), { rays: 0 })
+    dust(p, 120, hex('#d8ccff'), 12, 0.25)
+    // cartes en orbite
+    const ranks = ['A', 'K', 'Q', 'J', '10', '9', '8', '7']
+    const suits = ['S', 'H', 'D', 'C'] as const
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + 0.2
+      bigCard(p, 23.5 + Math.cos(a) * 30 - 6, 38 + Math.sin(a) * 40 - 8, ranks[i], suits[i % 4], Z.back, 12, 16)
+    }
+    // l'œil
+    p.ell(23.5, 38, 22, 13, C.pure, Z.mid)
+    p.ell(23.5, 38, 10, 10, hex('#8b5bd8'), Z.front)
+    p.ell(23.5, 38, 6.5, 6.5, hex('#c9a2ff'), Z.front, true)
+    p.ell(23.5, 38, 4, 4, C.ink, Z.top, true)
+    p.ell(21, 35.5, 1.6, 1.6, C.pure, Z.detail, true)
+    // cils
+    for (let i = -3; i <= 3; i++) p.fine(23.5 + i * 6, 25 - Math.abs(i) * 0.5 + (Math.abs(i) === 3 ? 4 : 0), 23.5 + i * 7.5, 19 - Math.abs(i) * 0.2 + (Math.abs(i) === 3 ? 4 : 0), C.ink)
+    p.text('×3', 17, 78, C.yellow, Z.detail, 2)
+  },
+  celestialBanker: (p) => {
+    aura(p, 23.5, 30, hex('#2a3f8a'), hex('#060a1e'), { rays: 0 })
+    dust(p, 140, hex('#e8eeff'), 14, 0.2)
+    // constellation de pièces
+    const pts: [number, number][] = [[-6, 6], [6, -2], [18, 4], [32, -3], [46, 5], [54, -2]]
+    for (let i = 0; i + 1 < pts.length; i++) p.fine(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1], hex('#9fb4e0'), Z.bg)
+    for (const [x, y] of pts) p.coin(x, y, 2.5, Z.mid)
+    jester(p, { ca: hex('#1d2f6a'), cb: C.gold, collar: C.pure, hat: 'top', eyes: 'dollar', mouth: 'smirk', arms: 'hold' })
+    // pile de pièces qui monte sans fin
+    for (let i = 0; i < 9; i++) p.ell(46, 84 - i * 3, 6, 2, i % 2 ? C.gold : hex('#ffe48a'), Z.top)
+    for (let i = 0; i < 5; i++) p.ell(1, 84 - i * 3, 6, 2, i % 2 ? C.gold : hex('#ffe48a'), Z.top)
+    p.text('$$$', 14, 82, C.yellow, Z.detail)
+  },
+  blackHole: (p) => {
+    aura(p, 23.5, 38, hex('#3a1a4a'), hex('#040208'), { rays: 0 })
+    dust(p, 120, hex('#e8e0ff'), 15, 0.15)
+    // disque d'accrétion : anneaux brûlants + bras de spirale sombres
+    const rings: [number, RGB][] = [
+      [36, hex('#5a0c1c')],
+      [31, hex('#c8202f')],
+      [25, C.orange],
+      [19, C.yellow],
+      [14, hex('#fff1c8')],
+    ]
+    for (const [r, c] of rings) p.ell(23.5, 38, r, r * 0.5, c, Z.mid, true)
+    for (let arm = 0; arm < 3; arm++)
+      for (let i = 0; i < 260; i++) {
+        const t = i / 260
+        const a = arm * ((Math.PI * 2) / 3) + t * Math.PI * 3.2
+        const r = 11 + t * 25
+        p.dot(23.5 + Math.cos(a) * r, 38 + Math.sin(a) * r * 0.5, hex('#2a0a10'), Z.detail)
+        p.dot(23.5 + Math.cos(a) * r + 0.5, 38 + Math.sin(a) * r * 0.5, hex('#2a0a10'), Z.detail)
+      }
+    p.ell(23.5, 36, 10, 9, hex('#ffd27a'), Z.front, true)
+    p.ell(23.5, 36, 8.5, 7.5, hex('#000000'), Z.top, true)
+    // cartes aspirées
+    bigCard(p, -8, -2, 'K', 'S', Z.top, 11, 15)
+    bigCard(p, 45, 6, 'Q', 'H', Z.top, 10, 14)
+    bigCard(p, 42, 66, 'J', 'D', Z.top, 9, 12)
+    bigCard(p, -6, 64, 'A', 'C', Z.top, 10, 14)
+    p.text('+×.5', 14, 78, C.yellow, Z.detail)
+  },
 }

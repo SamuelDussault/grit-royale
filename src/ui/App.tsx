@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
-import type { Card, Player, ScoreEvent, ScoreResult } from '../engine/types'
+import type { Card, CombatState, Player, ScoreEvent, ScoreResult } from '../engine/types'
 import { alivePlayers, waitingFor, type GameState } from '../engine/game'
 import type { Action, ActionResult } from '../engine/actions'
 import { Session } from '../net/session'
@@ -37,7 +37,7 @@ type Anim = {
   stage: 'events' | 'total'
   scoreBefore: number
 }
-type ModalState = null | { kind: 'deck' | 'levels' | 'matches' | 'collection' } | { kind: 'scout'; id: number } | { kind: 'target'; uid: number }
+type ModalState = null | { kind: 'deck' | 'levels' | 'matches' | 'collection' } | { kind: 'scout'; id: number } | { kind: 'target'; uid: number } | { kind: 'fate' }
 
 let popId = 1
 
@@ -415,6 +415,13 @@ export default function App() {
                 overlay={
                   !busy && (
                     <div className="cons-btns">
+                      {j.defId !== 'blackHole' &&
+                        gs.phase === 'shop' &&
+                        me.jokers.some((h) => h.defId === 'blackHole' && h.state.r !== gs.round) && (
+                          <button className="btn red sell-btn" onClick={() => act({ type: 'devour', uid: j.uid }, (r) => !r.error && sound.total())}>
+                            🕳 Avaler
+                          </button>
+                        )}
                       {j.defId === 'gluttony' && gs.phase === 'shop' && j.state.r !== gs.round && (
                         <button
                           className="btn red sell-btn"
@@ -667,6 +674,7 @@ export default function App() {
               onDiscard={doDiscard}
               onRewind={() => act({ type: 'rewind' }, () => setSelected([]))}
               onFinish={showVerdict}
+              onFate={() => setModal({ kind: 'fate' })}
             />
           )}
 
@@ -696,6 +704,7 @@ export default function App() {
               onPick={(i) => act({ type: 'pick', index: i, ids: selected }, (r) => !r.error && setSelected([]))}
               onSkipPack={() => act({ type: 'skipPack' })}
               onLoan={(amount) => act({ type: 'loan', amount }, (r) => !r.error && sound.coin())}
+              onDevour={(key) => act({ type: 'devour', key }, (r) => !r.error && sound.total())}
               onReady={() => {
                 setSelected([])
                 setJokerSel(null)
@@ -748,6 +757,16 @@ export default function App() {
         <Modal title={gs.players[modal.id].name} onClose={() => setModal(null)}>
           <ScoutView player={gs.players[modal.id]} />
         </Modal>
+      )}
+      {modal?.kind === 'fate' && gs.combats[meId] && (
+        <FateModal
+          cs={gs.combats[meId]}
+          onClose={() => setModal(null)}
+          onApply={(ids) => {
+            setModal(null)
+            act({ type: 'fate', ids })
+          }}
+        />
       )}
       {modal?.kind === 'target' && (
         <Modal title="Lancer la malédiction sur…" onClose={() => setModal(null)}>
@@ -847,6 +866,7 @@ function CombatArea(props: {
   onDiscard: () => void
   onRewind: () => void
   onFinish: () => void
+  onFate: () => void
 }) {
   const { me, cs, anim, juice, selected, busy } = props
   const rewindable = !!cs.canRewind && !cs.rewindUsed && !anim
@@ -867,6 +887,11 @@ function CombatArea(props: {
           </div>
         ) : (
           <div className="play-hint">{cs.finished ? '' : selected.length ? 'Jouer ou défausser ?' : 'Sélectionne jusqu’à 5 cartes'}</div>
+        )}
+        {me.jokers.some((j) => j.defId === 'fateEye') && !cs.finished && !anim && (
+          <button className="btn purple fate-btn" disabled={busy} onClick={props.onFate}>
+            👁 Œil du Destin
+          </button>
         )}
         {rewindable && (
           <div className="rewind-box">
@@ -939,6 +964,44 @@ function CombatArea(props: {
   )
 }
 
+// ===================== ŒIL DU DESTIN =====================
+function FateModal({ cs, onClose, onApply }: { cs: CombatState; onClose: () => void; onApply: (ids: number[]) => void }) {
+  // la fin de la pioche sort en premier
+  const [order, setOrder] = useState(() => cs.drawPile.slice(-10).reverse())
+  const [pick, setPick] = useState<number | null>(null)
+  return (
+    <Modal title="👁 L’Œil du Destin — les prochaines cartes" onClose={onClose}>
+      <div className="muted small" style={{ marginBottom: 8 }}>
+        La carte de gauche sera piochée en premier. Clique une carte, puis une autre pour les échanger.
+      </div>
+      <div className="fate-row">
+        {order.map((c, i) => (
+          <div
+            key={c.id}
+            className={`fate-slot ${pick === i ? 'picked' : ''}`}
+            onClick={() => {
+              if (pick === null) return setPick(i)
+              const next = [...order]
+              ;[next[pick], next[i]] = [next[i], next[pick]]
+              setOrder(next)
+              setPick(null)
+            }}
+          >
+            <span className="fate-n">{i + 1}</span>
+            <PlayingCard card={c} />
+          </div>
+        ))}
+        {!order.length && <div className="muted">La pioche est vide.</div>}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 10, marginTop: 12 }}>
+        <button className="btn blue" onClick={() => onApply(order.map((c) => c.id))} disabled={!order.length}>
+          Valider l’ordre
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
 // ===================== BOUTIQUE =====================
 function ShopArea(props: {
   gs: GameState
@@ -949,6 +1012,7 @@ function ShopArea(props: {
   onMatches: () => void
   onBuy: (item: ShopItem) => unknown
   onLoan: (amount: number) => unknown
+  onDevour: (key: number) => unknown
   onReroll: () => unknown
   onLock: (item: ShopItem) => unknown
   onPick: (i: number) => unknown
@@ -959,6 +1023,7 @@ function ShopArea(props: {
   const shop = gs.shops[props.meId]
   const pack = gs.packs[props.meId]
   const rep = gs.lastReport
+  const hungryHole = me.jokers.some((j) => j.defId === 'blackHole' && j.state.r !== gs.round)
 
   const priced = (item: ShopItem, card: React.ReactNode) => (
     <div key={item.key} className={`shop-item ${item.sold ? 'sold' : ''} ${item.locked ? 'locked' : ''}`}>
@@ -980,6 +1045,11 @@ function ShopArea(props: {
           onClick={() => props.onBuy(item)}
         >
           {item.kind === 'pack' ? 'Ouvrir' : 'Acheter'}
+        </button>
+      )}
+      {!item.sold && item.kind === 'joker' && hungryHole && (
+        <button className="btn red sm buy" onClick={() => props.onDevour(item.key)}>
+          🕳 Avaler
         </button>
       )}
     </div>
@@ -1450,7 +1520,7 @@ function CarouselArea({ gs, meId, onPick }: { gs: GameState; meId: number; onPic
   const myTurn = current === meId
   return (
     <div className="carousel panel-ui">
-      <div className="carousel-title">🎠 Carrousel de jokers</div>
+      <div className={`carousel-title ${c.legendary ? 'legend' : ''}`}>{c.legendary ? '🌟 Carrousel LÉGENDAIRE ! 🌟' : '🎠 Carrousel de jokers'}</div>
       <div className="muted">Chacun choisit un joker gratuit, à tour de rôle. Le joueur qui a le moins de PV choisit en premier.</div>
       <div className={`carousel-turn ${myTurn ? 'mine' : ''}`}>
         {myTurn ? 'À toi de choisir !' : current !== undefined ? `${gs.players[current].name} choisit…` : '…'}

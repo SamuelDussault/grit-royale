@@ -165,11 +165,22 @@ function botPack(p: Player, s: PackSession, rng: Rng) {
 
 export function botShop(p: Player, shop: ShopState, rng: Rng, round: number, others: Player[] = []) {
   const greed = p.bot?.greed ?? 0.5
-  const reserve = round <= 3 ? 0 : Math.min(50, Math.floor(greed * 5) * 10)
+  // Midas : garder de l'or coûte des PV, donc on dépense tout
+  const reserve = round <= 3 || p.jokers.some((j) => j.defId === 'midas') ? 0 : Math.min(50, Math.floor(greed * 5) * 10)
   const fav = favoriteHand(p)
   const canSpend = (price: number) => p.gold - price >= reserve
 
   botUseConsumables(p, rng, others)
+  // Trou Noir : avale le joker le moins cher de la boutique
+  const hole = p.jokers.find((j) => j.defId === 'blackHole' && j.state.r !== round)
+  if (hole) {
+    const prey = shop.cards.filter((i) => i.kind === 'joker' && !i.sold).sort((a, b) => a.price - b.price)[0]
+    if (prey) {
+      prey.sold = true
+      hole.state.x = (hole.state.x ?? 1) + (getJoker(prey.id).rarity === 4 ? 2 : 0.5)
+      hole.state.r = round
+    }
+  }
   // Gluttonie : les bots en bonne santé la nourrissent
   for (const j of p.jokers)
     if (j.defId === 'gluttony' && j.state.r !== round && p.hp > 45) {

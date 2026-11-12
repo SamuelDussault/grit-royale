@@ -112,6 +112,8 @@ export interface CombatState {
   lobbyJokerKinds?: number
   /** L'Espion : joker copié chez l'adversaire, par uid d'Espion. */
   spyCopies?: Record<number, JokerInst>
+  /** Jokers volés par le Marionnettiste adverse (inactifs ce combat). */
+  stolen?: number[]
   /** Or de l'adversaire au début du duel (Le Fanfaron). */
   oppGold?: number
   /** Le Maître du Temps : rediffusion déjà utilisée ce combat. */

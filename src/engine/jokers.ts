@@ -1330,6 +1330,78 @@ const LIST: JokerDef[] = [
     desc: (j) => `Une fois par boutique, tu peux sacrifier 5 PV pour lui donner +5 Grit pour toujours (actuel : +${st(j, 'g')} Grit)`,
     onJoker: (ctx, j, l) => ctx.addMult(st(j, 'g'), l),
   },
+  {
+    id: 'puppeteer',
+    name: 'Le Marionnettiste',
+    rarity: 4,
+    cost: 20,
+    pvp: true,
+    copyable: false,
+    desc: () => 'Au début de chaque duel, prend le contrôle du meilleur joker de ton adversaire : tu l’utilises, et lui le perd pendant ce combat',
+  },
+  {
+    id: 'ouroboros',
+    name: 'L’Ouroboros',
+    rarity: 4,
+    cost: 20,
+    desc: (j) =>
+      `Chaque main jouée lui donne +×0.2 Grit pour le reste du combat. À la fin du round, il garde 25 % de ce gain pour toujours (base actuelle : ×${st(j, 'x', 1).toFixed(2)})`,
+    onJoker: (ctx, j, l) => {
+      const gain = st(j, 'c') + 0.2
+      if (!ctx.preview) j.state.c = gain
+      ctx.xMult(st(j, 'x', 1) + gain, l)
+    },
+    onRoundEnd: (_p, j) => {
+      j.state.x = st(j, 'x', 1) + 0.25 * st(j, 'c')
+      j.state.c = 0
+    },
+  },
+  {
+    id: 'midas',
+    name: 'Midas',
+    rarity: 4,
+    cost: 20,
+    desc: () =>
+      'Toutes les cartes que tu joues deviennent en Or. Chaque carte en Or gardée en main donne ×1.2 Grit. Malédiction : à chaque fin de round, tu perds 1 PV par tranche de 3 $ que tu possèdes',
+    onJoker: (ctx, _j, l) => {
+      const n = ctx.held.filter((c) => c.enh === 'gold').length
+      if (n) ctx.xMult(Math.pow(1.2, n), l)
+    },
+    after: (ctx) => {
+      for (const c of ctx.played) if (c.enh !== 'cursed' && c.enh !== 'stone' && !ctx.destroyed.includes(c)) c.enh = 'gold'
+    },
+  },
+  {
+    id: 'fateEye',
+    name: 'L’Œil du Destin',
+    rarity: 4,
+    cost: 20,
+    desc: () => 'En combat, tu vois les 10 prochaines cartes de ta pioche et tu peux les réordonner. Tes Quintes Flush (et mieux) donnent ×3 Grit',
+    onJoker: (ctx, _j, l) => {
+      if (['straightFlush', 'five', 'flushHouse', 'flushFive'].includes(ctx.type)) ctx.xMult(3, l)
+    },
+  },
+  {
+    id: 'celestialBanker',
+    name: 'Le Banquier Céleste',
+    rarity: 4,
+    cost: 20,
+    desc: (j) =>
+      `Tes intérêts n’ont plus de maximum. À chaque fin de round, gagne ×0.1 Grit pour toujours par tranche de 10 $ que tu gardes (actuel : ×${st(j, 'x', 1).toFixed(1)})`,
+    onJoker: (ctx, j, l) => ctx.xMult(st(j, 'x', 1), l),
+    onRoundEnd: (p, j) => {
+      j.state.x = st(j, 'x', 1) + 0.1 * Math.floor(Math.max(0, p.gold) / 10)
+    },
+  },
+  {
+    id: 'blackHole',
+    name: 'Le Trou Noir',
+    rarity: 4,
+    cost: 20,
+    desc: (j) =>
+      `Une fois par boutique, il peut avaler un de tes jokers ou un joker en vente : +×0.5 Grit pour toujours (+×2 si c’est un légendaire) (actuel : ×${st(j, 'x', 1).toFixed(1)})`,
+    onJoker: (ctx, j, l) => ctx.xMult(st(j, 'x', 1), l),
+  },
 ]
 
 export const JOKERS: Record<string, JokerDef> = Object.fromEntries(LIST.map((d) => [d.id, d]))

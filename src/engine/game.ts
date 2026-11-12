@@ -1,7 +1,7 @@
 // Le lobby façon TFT : appariements, combats, dégâts, économie, éliminations.
 // Gère plusieurs joueurs humains : chaque humain agit via des « actions » (voir actions.ts),
 // et un round ne se termine que quand tous les humains encore en vie ont fini.
-import type { CombatState, HandType, Player } from './types'
+import type { CombatState, HandType, JokerInst, Player } from './types'
 import { makeCard, standardDeck, SUITS } from './cards'
 import { HAND_TYPES } from './hands'
 import { Rng } from './rng'
@@ -23,6 +23,8 @@ export const CONFIG = {
   shopTime: 60_000,
   combatTime: 100_000,
   carouselPickTime: 15_000,
+  /** Chance qu'un carrousel soit rempli de légendaires (2 %). */
+  legendaryCarouselChance: 0.02,
 }
 
 // ---------------- mini-boss ----------------
@@ -75,6 +77,8 @@ export function isCarouselAfter(round: number): boolean {
 
 export interface Carousel {
   items: { defId: string; edition?: import('./types').Edition; takenBy?: number }[]
+  /** Très rare : carrousel entièrement composé de légendaires. */
+  legendary?: boolean
   order: number[] // ids des joueurs, dans l'ordre de choix (le moins de PV d'abord)
   turn: number
 }
@@ -225,13 +229,14 @@ function openShops(gs: GameState) {
 function openCarousel(gs: GameState) {
   const alive = alivePlayers(gs)
   const taken: string[] = []
+  const legendary = gs.rng.chance(CONFIG.legendaryCarouselChance)
   const items: Carousel['items'] = alive.map(() => {
-    const defId = randomJokerId(gs.rng, gs.rng.chance(0.25) ? 3 : 2, taken)
+    const defId = randomJokerId(gs.rng, legendary ? 4 : gs.rng.chance(0.25) ? 3 : 2, taken)
     taken.push(defId)
     return { defId, edition: gs.rng.chance(0.3) ? (rollEdition(gs.rng) ?? 'foil') : undefined }
   })
   const order = gs.rng.shuffle(alive.map((p) => p.id)).sort((a, b) => gs.players[a].hp - gs.players[b].hp)
-  gs.carousel = { items, order, turn: 0 }
+  gs.carousel = { items, order, turn: 0, legendary }
   gs.phase = 'carousel'
   gs.ready = {}
   gs.packs = {}
@@ -293,6 +298,16 @@ function runCarousel(gs: GameState) {
   }
   gs.carousel = { ...c, turn: c.order.length }
   openShops(gs)
+}
+
+/** Le meilleur joker d'un joueur (pour le Marionnettiste) : rareté puis prix. */
+function bestJoker(p: Player): JokerInst | undefined {
+  return p.jokers
+    .filter((j) => {
+      const d = getJoker(j.defId)
+      return !d.copy && d.copyable !== false
+    })
+    .sort((a, b) => getJoker(b.defId).rarity - getJoker(a.defId).rarity || getJoker(b.defId).cost - getJoker(a.defId).cost)[0]
 }
 
 /** Applique des dégâts de duel (Garde du Corps absorbe d'abord). Renvoie les PV vraiment perdus. */
@@ -377,6 +392,17 @@ function prepareCombat(gs: GameState, p: Player): CombatState {
     }
   }
   if (opp) cs.oppGold = opp.gold
+  // Le Marionnettiste : on contrôle le meilleur joker adverse… qui le perd pour ce combat
+  if (opp) {
+    for (const pup of p.jokers.filter((j) => j.defId === 'puppeteer')) {
+      const t = bestJoker(opp)
+      if (t) (cs.spyCopies ??= {})[pup.uid] = { ...t, state: { ...t.state } }
+    }
+    if (!info.ghost && opp.jokers.some((j) => j.defId === 'puppeteer')) {
+      const t = bestJoker(p)
+      if (t) cs.stolen = [t.uid]
+    }
+  }
   // Sablier Cassé : une défausse de plus
   cs.discardsLeft += countJoker(p, 'brokenHourglass')
   // Roue de la Fortune Inversée : 1 chance sur 3 d'améliorer toute la main
@@ -596,7 +622,7 @@ function resolveRound(gs: GameState) {
       if (amount) lines.push({ label, amount })
     }
     add('Revenu de base', CONFIG.baseIncome)
-    const cap = p.vouchers.includes('seedMoney') ? 10 : CONFIG.interestCap
+    const cap = countJoker(p, 'celestialBanker') ? Infinity : p.vouchers.includes('seedMoney') ? 10 : CONFIG.interestCap
     const g = Math.max(0, p.gold)
     if (!countJoker(p, 'leakyPurse')) add('Intérêts', Math.min(cap, Math.floor(g / CONFIG.interestPer)))
     const moons = p.jokers.filter((j) => j.defId === 'toTheMoon').length
@@ -646,6 +672,12 @@ function resolveRound(gs: GameState) {
     }
     for (const l of lines) p.gold += l.amount
     goldAll[p.id] = lines
+    // Midas : la malédiction de l'or
+    if (countJoker(p, 'midas') && p.gold >= 3) {
+      const loss = Math.floor(p.gold / 3) * countJoker(p, 'midas')
+      p.hp -= loss
+      msg(p.id, `Malédiction de Midas : ${p.gold} $ → −${loss} PV`)
+    }
   }
 
   // Cendres du Phénix : on renaît au lieu de mourir

@@ -462,3 +462,14 @@ button, input { font-family: var(--font); }
   0%, 100% { opacity: 0.45; }
   50% { opacity: 1; }
 }
+
+.carousel-title.legend { color: #ffe48a; text-shadow: 0 0 10px rgba(255, 200, 70, 0.9); animation: legend-glow 1.6s ease-in-out infinite; }
+
+/* ---------- Œil du Destin ---------- */
+.fate-btn { margin-top: 8px; }
+.fate-row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; --cw: 74px; }
+.fate-slot { position: relative; cursor: pointer; border-radius: 8px; padding: 3px; transition: transform 0.1s; }
+.fate-slot:hover { transform: translateY(-3px); }
+.fate-slot.picked { outline: 3px solid #ffe48a; }
+.fate-n { position: absolute; top: -6px; left: -6px; z-index: 2; background: #2a233a; color: #ffe48a; border-radius: 10px; padding: 0 6px; font-size: 13px; }
+.btn.purple { background: #8867a5; --sh: #5b4372; }

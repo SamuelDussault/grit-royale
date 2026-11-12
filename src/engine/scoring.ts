@@ -97,7 +97,8 @@ export class ScoreCtx {
 function activeJokers(player: Player, combat: CombatState): { j: JokerInst; def: JokerDef; self: JokerInst }[] {
   const out: { j: JokerInst; def: JokerDef; self: JokerInst }[] = []
   player.jokers.forEach((self, i) => {
-    if (self.defId === 'spy' || self.defId === 'impostor') {
+    if (combat.stolen?.includes(self.uid)) return
+    if (self.defId === 'spy' || self.defId === 'impostor' || self.defId === 'puppeteer') {
       const target = combat.spyCopies?.[self.uid]
       if (target) out.push({ j: target, def: getJoker(target.defId), self })
       return

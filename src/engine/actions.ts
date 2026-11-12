@@ -5,6 +5,7 @@ import { applyConsumable, getConsumable, useBlocker, type UseEnv } from './consu
 import { buy, pickPackOption, reroll, sellConsumable, sellJoker, toggleLock } from './shop'
 import { carouselPick, launchGame, maybeAdvance, type GameState } from './game'
 import { pickShopItem } from './bot'
+import { getJoker, jokersGone } from './jokers'
 
 export type Action =
   | { type: 'start' }
@@ -24,6 +25,8 @@ export type Action =
   | { type: 'finishCombat' }
   | { type: 'rewind' }
   | { type: 'feed'; uid: number }
+  | { type: 'devour'; uid?: number; key?: number }
+  | { type: 'fate'; ids: number[] }
   | { type: 'loan'; amount: number }
 
 interface Snapshot {
@@ -97,6 +100,37 @@ export function applyAction(gs: GameState, pid: number, a: Action): ActionResult
         j.state.r = gs.round
         j.state.g = (j.state.g ?? 0) + 5
         return { msg: `Gluttonie dévore 5 PV : +${j.state.g} Grit` }
+      }
+      case 'devour': {
+        const hole = me.jokers.find((j) => j.defId === 'blackHole' && j.state.r !== gs.round)
+        if (!hole || gs.phase !== 'shop' || gs.ready[pid]) return { error: 'Le Trou Noir a déjà mangé dans cette boutique' }
+        let defId: string
+        if (a.uid !== undefined) {
+          const victim = me.jokers.find((j) => j.uid === a.uid)
+          if (!victim || victim === hole) return { error: 'Joker introuvable' }
+          me.jokers = me.jokers.filter((j) => j !== victim)
+          jokersGone(me)
+          defId = victim.defId
+        } else {
+          const item = gs.shops[pid]?.cards.find((i) => i.key === a.key && i.kind === 'joker' && !i.sold)
+          if (!item) return { error: 'Joker introuvable' }
+          item.sold = true
+          defId = item.id
+        }
+        const legend = getJoker(defId).rarity === 4
+        hole.state.x = (hole.state.x ?? 1) + (legend ? 2 : 0.5)
+        hole.state.r = gs.round
+        return { msg: `Le Trou Noir avale ${getJoker(defId).name} : ×${hole.state.x.toFixed(1)} Grit` }
+      }
+      case 'fate': {
+        const cs = gs.combats[pid]
+        if (gs.phase !== 'combat' || !cs || gs.ready[pid] || !me.jokers.some((j) => j.defId === 'fateEye')) return { error: 'Impossible' }
+        const n = Math.min(10, cs.drawPile.length)
+        const top = cs.drawPile.slice(cs.drawPile.length - n) // la fin de la pioche sort en premier
+        if (a.ids.length !== n || !a.ids.every((id) => top.some((c) => c.id === id))) return { error: 'Ordre invalide' }
+        const ordered = a.ids.map((id) => top.find((c) => c.id === id)!)
+        cs.drawPile = [...cs.drawPile.slice(0, cs.drawPile.length - n), ...ordered.reverse()]
+        return {}
       }
       case 'loan': {
         if (gs.phase !== 'shop' || gs.ready[pid]) return { error: 'Seulement en boutique' }

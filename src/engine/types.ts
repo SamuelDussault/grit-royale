@@ -74,6 +74,10 @@ export interface Player {
   beatenBy: number[]
   /** Mains en moins au prochain combat (malédiction Brouillard). */
   nextHandsMalus?: number
+  /** Mode équipes : numéro d'équipe (les coéquipiers partagent leurs PV). */
+  team?: number
+  /** Mode équipes : le cadeau de joker a déjà été fait. */
+  giftUsed?: boolean
   /** L’Usurier : or emprunté à la banque (1 PV perdu par $ dû à chaque fin de round). */
   debt?: number
   lastConsumable?: { kind: ConsumableKind; defId: string } // pour Le Mat
@@ -103,6 +107,8 @@ export interface CombatState {
   score: number
   handScores: number[]
   playedTypes: HandType[] // types joués ce round
+  /** Mains jouées ce combat (pour les spectateurs). */
+  history?: { cards: Card[]; type: HandType; total: number }[]
   finished: boolean
   oppHp?: number // PV de l'adversaire (pour certains jokers)
   oppId?: number // -1 = mini-boss

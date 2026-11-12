@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import type { Card, CombatState, Player, ScoreEvent, ScoreResult } from '../engine/types'
-import { alivePlayers, waitingFor, type GameMode, type GameState } from '../engine/game'
+import { alivePlayers, aliveTeams, hasSpectators, TEAM_NAMES, teammate, waitingFor, type GameMode, type GameState } from '../engine/game'
 import type { Action, ActionResult } from '../engine/actions'
-import { Session } from '../net/session'
+import { Session, SPECTATE_HAND_MS } from '../net/session'
+import { loadProfile, recordGame, recordHand, resetProfile, trackLive } from './profile'
 import { sound } from './sound'
 import { evaluateHand, handBase, HANDS } from '../engine/hands'
 import { collectRules } from '../engine/scoring'
@@ -37,10 +38,12 @@ type Anim = {
   stage: 'events' | 'total'
   scoreBefore: number
 }
+const TEAM_SUITS = ['♥', '♠', '♦', '♣']
+
 const HOME_FAN = ['midas', 'phoenix', 'triboulet', 'blackHole', 'divineDie']
 const HOME_MARQUEE = ['joker', 'cashout', 'electric', 'gambler', 'vampire', 'megalith', 'voodoo', 'timeMaster', 'devilPact', 'champagne', 'impostor', 'pickpocket', 'kingHill', 'string', 'catalyst', 'wheelInv', 'gravedigger', 'bodyguard']
 
-type ModalState = null | { kind: 'deck' | 'levels' | 'matches' | 'collection' } | { kind: 'scout'; id: number } | { kind: 'target'; uid: number } | { kind: 'fate' } | { kind: 'quit' }
+type ModalState = null | { kind: 'deck' | 'levels' | 'matches' | 'collection' } | { kind: 'scout'; id: number } | { kind: 'target'; uid: number } | { kind: 'fate' } | { kind: 'quit' } | { kind: 'profile' }
 
 let popId = 1
 
@@ -92,6 +95,13 @@ export default function App() {
   const dragFrom = useRef<number | null>(null)
 
   const gs = session?.gs ?? null
+  // profil : suivi de la partie et enregistrement à la fin (ou à l'élimination)
+  useEffect(() => {
+    const me = gs?.players[meId]
+    if (!gs || !me || gs.phase === 'lobby') return
+    trackLive(gs, me)
+    if (me.placement > 0 && (!me.alive || gs.phase === 'over')) recordGame(gs, me)
+  })
   const meId = session?.meId ?? 0
   const params = new URLSearchParams(location.search)
   const joinId = params.get('join')
@@ -291,6 +301,11 @@ export default function App() {
                       <span className="mode-name">Légendaire</span>
                       <span className="mode-desc">Chacun commence avec un joker légendaire</span>
                     </button>
+                    <button className={`mode-tile team ${gameMode === 'teams' ? 'on' : ''}`} onClick={() => setGameMode('teams')}>
+                      <span className="mode-icon">🤝</span>
+                      <span className="mode-name">Équipes</span>
+                      <span className="mode-desc">2v2v2v2 · PV partagés · 1 cadeau</span>
+                    </button>
                   </div>
                   <div className="menu-btns">
                     <button className="btn blue big" onClick={() => setSession(Session.solo(name.trim() || 'Toi', gameMode))}>
@@ -300,9 +315,14 @@ export default function App() {
                       EN LIGNE
                     </button>
                   </div>
-                  <button className="btn orange coll-btn" onClick={() => setModal({ kind: 'collection' })}>
-                    📖 COLLECTION
-                  </button>
+                  <div className="home-sub-btns">
+                    <button className="btn orange" onClick={() => setModal({ kind: 'collection' })}>
+                      📖 COLLECTION
+                    </button>
+                    <button className="btn purple" onClick={() => setModal({ kind: 'profile' })}>
+                      📊 PROFIL
+                    </button>
+                  </div>
                 </>
               )}
               <div className="how">
@@ -334,6 +354,11 @@ export default function App() {
         {modal?.kind === 'collection' && (
           <Modal title="Collection" onClose={() => setModal(null)}>
             <Collection />
+          </Modal>
+        )}
+        {modal?.kind === 'profile' && (
+          <Modal title={`Profil${name.trim() ? ` de ${name.trim()}` : ''}`} onClose={() => setModal(null)}>
+            <ProfileView />
           </Modal>
         )}
       </>
@@ -404,7 +429,10 @@ export default function App() {
     setSelected([])
     sound.playHand()
     act({ type: 'play', ids: played.map((c) => c.id) }, (r) => {
-      if (r.score) setAnim({ res: r.score, played, held, i: 0, chips: r.score.baseChips, mult: r.score.baseMult, stage: 'events', scoreBefore })
+      if (r.score) {
+        recordHand(r.score.total, HANDS[r.score.type].name)
+        setAnim({ res: r.score, played, held, i: 0, chips: r.score.baseChips, mult: r.score.baseMult, stage: 'events', scoreBefore })
+      }
     })
   }
   const doDiscard = () => {
@@ -466,6 +494,14 @@ export default function App() {
                             🕳 Avaler
                           </button>
                         )}
+                      {gs.mode === 'teams' && gs.phase === 'shop' && !me.giftUsed && teammate(gs, me)?.alive && (
+                        <button
+                          className="btn blue sell-btn"
+                          onClick={() => act({ type: 'gift', uid: j.uid }, (r) => !r.error && sound.coin())}
+                        >
+                          🎁 Donner
+                        </button>
+                      )}
                       {j.defId === 'gluttony' && gs.phase === 'shop' && j.state.r !== gs.round && (
                         <button
                           className="btn red sell-btn"
@@ -695,13 +731,13 @@ export default function App() {
           </div>
 
           {!me.alive && gs.phase !== 'over' && (
-            <div className="wait-panel panel-ui">
-              <div className="stamp static lose">{me.placement}e PLACE</div>
-              <p>Tu es éliminé·e. La partie continue : clique un joueur du lobby pour regarder ses jokers.</p>
-              <button className="btn orange" onClick={() => leave()}>
-                Quitter la partie
-              </button>
-            </div>
+            <SpectateArea
+              gs={gs}
+              me={me}
+              canSkip={session!.mode !== 'guest' && hasSpectators(gs)}
+              onSkip={() => act({ type: 'skipToEnd' })}
+              onLeave={leave}
+            />
           )}
 
           {me.alive && gs.phase === 'combat' && myDone && !anim && !ending && <WaitPanel gs={gs} text="Combat terminé !" />}
@@ -911,10 +947,16 @@ function avatarColor(id: number): string {
 
 // ===================== LOBBY =====================
 function Lobby({ gs, meId, onScout }: { gs: GameState; meId: number; onScout: (id: number) => void }) {
-  const list = [...gs.players].sort((a, b) => (a.alive === b.alive ? b.hp - a.hp || a.id - b.id : a.alive ? -1 : 1))
+  const teams = gs.mode === 'teams'
+  const list = [...gs.players].sort((a, b) =>
+    a.alive === b.alive ? (teams ? b.hp - a.hp || a.team! - b.team! || a.id - b.id : b.hp - a.hp || a.id - b.id) : a.alive ? -1 : 1,
+  )
+  const myTeam = gs.players[meId]?.team
   return (
     <div className="lobby box">
-      <div className="muted small lobby-title">Lobby · {alivePlayers(gs).length} en vie</div>
+      <div className="muted small lobby-title">
+        Lobby · {alivePlayers(gs).length} en vie{teams ? ` · ${aliveTeams(gs)} équipes` : ''}
+      </div>
       {list.map((p) => (
         <div
           key={p.id}
@@ -922,12 +964,18 @@ function Lobby({ gs, meId, onScout }: { gs: GameState; meId: number; onScout: (i
           onClick={() => onScout(p.id)}
           title="Voir ses jokers"
         >
+          {teams && (
+            <span className={`team-dot t${p.team}`} title={`Équipe ${TEAM_NAMES[p.team!]}`}>
+              {TEAM_SUITS[p.team!]}
+            </span>
+          )}
           <span className="avatar" style={{ background: avatarColor(p.id) }}>
             {p.name[0]}
           </span>
           <span className="lname">
             {p.name}
             {!p.isBot && ' 👤'}
+            {teams && p.team === myTeam && p.id !== meId && <span className="mate-tag">coéquipier</span>}
           </span>
           <span className="lhp">
             {p.alive ? (
@@ -944,6 +992,121 @@ function Lobby({ gs, meId, onScout }: { gs: GameState; meId: number; onScout: (i
           {p.alive && p.winStreak >= 2 && <span className="streak">🔥{p.winStreak}</span>}
         </div>
       ))}
+    </div>
+  )
+}
+
+
+// ===================== SPECTATEUR =====================
+function SpectateArea({ gs, me, canSkip, onSkip, onLeave }: { gs: GameState; me: Player; canSkip: boolean; onSkip: () => void; onLeave: () => void }) {
+  const [, tick] = useReducer((x: number) => x + 1, 0)
+  const [pick, setPick] = useState<number | null>(null)
+  const since = useRef<{ round: number; t: number }>({ round: -1, t: 0 })
+  if (since.current.round !== gs.round) since.current = { round: gs.round, t: Date.now() }
+  useEffect(() => {
+    const t = setInterval(tick, 300)
+    return () => clearInterval(t)
+  }, [])
+  // nombre de mains visibles : les bots « jouent » une main toutes les 1,6 s, les humains en direct
+  const shown = (pid: number) => {
+    const h = gs.combats[pid]?.history ?? []
+    if (!gs.players[pid].isBot) return h.length
+    return Math.min(h.length, Math.floor((Date.now() - since.current.t) / SPECTATE_HAND_MS) + 1)
+  }
+  const duels: { a: number; b?: number; ghost?: boolean }[] =
+    gs.phase !== 'combat' ? [] : gs.boss ? alivePlayers(gs).map((p) => ({ a: p.id })) : gs.matches.map((m) => ({ a: m.a, b: m.b, ghost: m.ghostB }))
+  const human = duels.findIndex((d) => !gs.players[d.a].isBot || (d.b !== undefined && !gs.players[d.b].isBot))
+  const sel = duels[pick ?? (human >= 0 ? human : 0)] ? (pick ?? (human >= 0 ? human : 0)) : 0
+  const duel = duels[sel]
+
+  const column = (pid: number, ghost = false) => {
+    const p = gs.players[pid]
+    const cs = gs.combats[pid]
+    const n = shown(pid)
+    const hist = (cs?.history ?? []).slice(0, n)
+    const score = hist.reduce((a, h) => a + h.total, 0)
+    const done = !!cs && n >= (cs.history?.length ?? 0) && (p.isBot || cs.finished)
+    return (
+      <div className="spec-col">
+        <div className="spec-head">
+          {gs.mode === 'teams' && <span className={`team-dot t${p.team}`}>{TEAM_SUITS[p.team!]}</span>}
+          <span className="avatar" style={{ background: avatarColor(p.id) }}>
+            {p.name[0]}
+          </span>
+          <span className="spec-name">
+            {p.name}
+            {!p.isBot && ' 👤'}
+            {ghost && <span className="ghost">fantôme</span>}
+          </span>
+          <span className="hp">♥ {Math.max(0, p.hp)}</span>
+        </div>
+        <div className="spec-score">
+          <span className="muted small">Score</span>
+          <Num value={score} className="big-num" />
+        </div>
+        <div className="spec-hands">
+          {hist.map((h, i) => (
+            <div key={i} className="spec-hand" style={{ animationDelay: '0s' }}>
+              <div className="spec-cards">
+                {h.cards.map((c) => (
+                  <PlayingCard key={c.id} card={c} />
+                ))}
+              </div>
+              <div className="spec-hand-info">
+                <span>{HANDS[h.type].name}</span>
+                <b className="t-chips">{fmt(h.total)}</b>
+              </div>
+            </div>
+          ))}
+          {!done && <div className="spec-thinking">{p.isBot ? 'joue…' : 'réfléchit…'}</div>}
+        </div>
+        <div className="spec-jokers">
+          {p.jokers.slice(0, 10).map((j) => (
+            <JokerCard key={j.uid} defId={j.defId} edition={j.edition} inst={j} player={p} />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="spectate panel-ui">
+      <div className="spec-top">
+        <div className="spec-title">
+          👁 Spectateur · Round {gs.round} <span className="muted small">(tu as fini {me.placement}e)</span>
+        </div>
+        <div className="spec-btns">
+          {canSkip && (
+            <button className="btn orange sm" onClick={onSkip}>
+              ⏩ Passer à la fin
+            </button>
+          )}
+          <button className="btn red sm" onClick={onLeave}>
+            🏠 Quitter
+          </button>
+        </div>
+      </div>
+      {gs.phase !== 'combat' ? (
+        <div className="spec-wait">{gs.phase === 'carousel' ? '🎠 Carrousel en cours…' : '🛒 Les joueurs magasinent…'}</div>
+      ) : (
+        <>
+          <div className="spec-tabs">
+            {duels.map((d, i) => (
+              <button key={i} className={`btn sm ${i === sel ? 'blue' : 'off'}`} onClick={() => setPick(i)}>
+                {gs.players[d.a].name}
+                {d.b !== undefined ? ` vs ${gs.players[d.b].name}` : ' vs boss'}
+              </button>
+            ))}
+          </div>
+          {duel && (
+            <div className="spec-duel">
+              {column(duel.a)}
+              <div className="spec-vs">{gs.boss ? `☠ ${fmt(gs.boss.target)}` : 'VS'}</div>
+              {duel.b !== undefined ? column(duel.b, duel.ghost) : <div className="spec-col spec-boss">☠ {gs.boss?.name}</div>}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -1223,6 +1386,22 @@ function ShopArea(props: {
     }
   }
 
+  // Mode Équipes : présentation du coéquipier
+  if (!banner && gs.mode === 'teams' && gs.round === 0) {
+    const mate = teammate(gs, me)
+    banner = (
+      <div className={`banner team-banner t${me.team}`}>
+        <div className="banner-title">
+          🤝 Équipe {TEAM_NAMES[me.team!]} {TEAM_SUITS[me.team!]}
+        </div>
+        <div>
+          Ton coéquipier : <b>{mate?.name}</b>. Vous partagez <b className="t-red">{me.hp} PV</b> — chaque défaite de l’un fait mal aux deux. Une fois par
+          partie, tu peux lui <b>🎁 donner</b> un de tes jokers (survole-le en boutique).
+        </div>
+      </div>
+    )
+  }
+
   // Mode Légendaire : présentation du légendaire de départ
   if (!banner && gs.mode === 'legendary' && gs.round === 0) {
     const leg = me.jokers.find((j) => getJoker(j.defId).rarity === 4)
@@ -1348,9 +1527,12 @@ function GameOver({ gs, meId, mode, onRematch, onMenu }: { gs: GameState; meId: 
   const humans = gs.players.filter((p) => !p.isBot).length
   return (
     <div className="gameover panel-ui">
-      <div className={`stamp static ${won ? 'win' : 'lose'}`}>{won ? 'VICTOIRE ROYALE' : `${me.placement}e PLACE`}</div>
+      <div className={`stamp static ${won ? 'win' : 'lose'}`}>
+        {won ? (gs.mode === 'teams' ? 'VICTOIRE D’ÉQUIPE' : 'VICTOIRE ROYALE') : `${me.placement}e PLACE`}
+      </div>
       <p className="muted">
-        {gs.round} rounds · {me.stats.roundsWon} duels gagnés · mode {gs.mode === 'legendary' ? 'Légendaire' : 'Classique'}
+        {gs.round} rounds · {me.stats.roundsWon} duels gagnés · mode{' '}
+        {gs.mode === 'legendary' ? 'Légendaire' : gs.mode === 'teams' ? `Équipes (${TEAM_NAMES[me.team!]})` : 'Classique'}
       </p>
       <div className="ranking">
         {ranking.map((p) => (
@@ -1360,7 +1542,7 @@ function GameOver({ gs, meId, mode, onRematch, onMenu }: { gs: GameState; meId: 
               {p.name[0]}
             </span>
             <span>
-              {p.name}
+              {gs.mode === 'teams' && <span className={`team-dot t${p.team}`}>{TEAM_SUITS[p.team!]}</span>} {p.name}
               {!p.isBot && ' 👤'}
             </span>
             <span className="muted small">{p.jokers.length} jokers</span>
@@ -1383,6 +1565,82 @@ function GameOver({ gs, meId, mode, onRematch, onMenu }: { gs: GameState; meId: 
           🏠 Menu principal
         </button>
       </div>
+    </div>
+  )
+}
+
+const MODE_NAME: Record<string, string> = { classic: 'Classique', legendary: 'Légendaire', teams: 'Équipes' }
+
+function ProfileView() {
+  const [p, setP] = useState(loadProfile)
+  const fav = Object.entries(p.jokers)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+  const stat = (label: string, value: React.ReactNode, cls = '') => (
+    <div className="pstat">
+      <span className="muted small">{label}</span>
+      <b className={cls}>{value}</b>
+    </div>
+  )
+  if (!p.games && !p.bestHand) return <div className="muted" style={{ padding: 20, fontSize: 22 }}>Joue une première partie pour remplir ton profil !</div>
+  return (
+    <div className="profile">
+      <div className="pstats">
+        {stat('Parties', p.games)}
+        {stat('Victoires', p.wins, 't-money')}
+        {stat('Taux de victoire', p.games ? `${Math.round((p.wins / p.games) * 100)} %` : '—')}
+        {stat('Top 3', p.top3)}
+        {stat('Place moyenne', p.games ? (p.placements / p.games).toFixed(1) : '—')}
+        {stat('Rounds joués', p.roundsPlayed)}
+        {stat('Meilleure main', `${fmt(p.bestHand)}${p.bestHandType ? ` (${p.bestHandType})` : ''}`, 't-chips')}
+        {stat('Meilleur combat', fmt(p.bestRound), 't-chips')}
+        {stat('Plus gros Cash-Out', p.bestCashout ? `×${p.bestCashout.toFixed(2)}` : '—', 't-mult')}
+        {stat('Légendaires obtenus', p.legendaries, 't-money')}
+        {stat('Renaissances du Phénix', p.phoenix)}
+      </div>
+      <div className="pmodes">
+        {Object.entries(p.byMode).map(([m, v]) => (
+          <span key={m} className="pmode">
+            {MODE_NAME[m] ?? m} : {v.wins} / {v.games}
+          </span>
+        ))}
+      </div>
+      {fav.length > 0 && (
+        <>
+          <div className="psub">Tes jokers préférés</div>
+          <div className="pfav">
+            {fav.map(([id, n]) => (
+              <div key={id} className="pfav-card">
+                <JokerCard defId={id} />
+                <span className="muted small">{n} partie{n > 1 ? 's' : ''}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {p.lastGames.length > 0 && (
+        <>
+          <div className="psub">Dernières parties</div>
+          <div className="plast">
+            {p.lastGames.map((g, i) => (
+              <span key={i} className={`plast-item ${g.placement === 1 ? 'win' : ''}`}>
+                #{g.placement} · {MODE_NAME[g.mode] ?? g.mode} · {g.rounds} rounds
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+      <button
+        className="btn red sm"
+        onClick={() => {
+          if (confirm('Effacer tout ton profil ?')) {
+            resetProfile()
+            setP(loadProfile())
+          }
+        }}
+      >
+        Réinitialiser
+      </button>
     </div>
   )
 }
@@ -1543,10 +1801,17 @@ function LobbyRoom({
           <button className={`mode-tile legend ${gs.mode === 'legendary' ? 'on' : ''}`} onClick={() => onMode('legendary')}>
             <span className="mode-name">🌟 Légendaire</span>
           </button>
+          <button className={`mode-tile team ${gs.mode === 'teams' ? 'on' : ''}`} onClick={() => onMode('teams')}>
+            <span className="mode-name">🤝 Équipes</span>
+          </button>
         </div>
       ) : (
         <div className={`mode-badge ${gs.mode === 'legendary' ? 'legend' : ''}`}>
-          {gs.mode === 'legendary' ? '🌟 Mode Légendaire : chacun commence avec un légendaire' : '🃏 Mode Classique'}
+          {gs.mode === 'legendary'
+            ? '🌟 Mode Légendaire : chacun commence avec un légendaire'
+            : gs.mode === 'teams'
+              ? '🤝 Mode Équipes : 2v2v2v2, PV partagés'
+              : '🃏 Mode Classique'}
         </div>
       )}
       <div className="panel-ui lobby-room">
@@ -1564,9 +1829,10 @@ function LobbyRoom({
         ) : (
           <div className="muted">Connecté ! En attente que l’hôte lance la partie…</div>
         )}
-        <div className="seats">
+        {gs.mode === 'teams' && <div className="muted small">Les équipes : chaque ligne joue ensemble (places 1-2, 3-4, 5-6, 7-8).</div>}
+        <div className={`seats ${gs.mode === 'teams' ? 'teams' : ''}`}>
           {gs.players.map((p) => (
-            <div key={p.id} className={`seat ${p.isBot ? 'bot' : 'human'} ${p.id === meId ? 'me' : ''}`}>
+            <div key={p.id} className={`seat ${p.isBot ? 'bot' : 'human'} ${p.id === meId ? 'me' : ''} ${gs.mode === 'teams' ? `team-seat t${Math.floor(p.id / 2)}` : ''}`}>
               <span className="avatar" style={{ background: avatarColor(p.id) }}>
                 {p.name[0]}
               </span>

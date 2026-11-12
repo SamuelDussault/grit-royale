@@ -1,9 +1,9 @@
 // Toutes les actions qu'un joueur peut faire. L'hôte (ou le jeu solo) les applique sur l'état.
 import type { Card, CombatState, JokerInst, Player, ScoreResult } from './types'
 import { discardCards, playHand } from './combat'
-import { applyConsumable, getConsumable, useBlocker, type UseEnv } from './consumables'
+import { applyConsumable, getConsumable, jokerRoom, useBlocker, type UseEnv } from './consumables'
 import { buy, pickPackOption, reroll, sellConsumable, sellJoker, toggleLock } from './shop'
-import { carouselPick, launchGame, maybeAdvance, type GameMode, type GameState } from './game'
+import { aliveHumans, carouselPick, finishWithBots, launchGame, maybeAdvance, syncTeams, teammate, type GameMode, type GameState } from './game'
 import { pickShopItem } from './bot'
 import { getJoker, jokersGone } from './jokers'
 
@@ -25,6 +25,8 @@ export type Action =
   | { type: 'finishCombat' }
   | { type: 'rewind' }
   | { type: 'setMode'; mode: GameMode }
+  | { type: 'gift'; uid: number }
+  | { type: 'skipToEnd' }
   | { type: 'feed'; uid: number }
   | { type: 'devour'; uid?: number; key?: number }
   | { type: 'fate'; ids: number[] }
@@ -55,6 +57,12 @@ export interface ActionResult {
 }
 
 export function applyAction(gs: GameState, pid: number, a: Action): ActionResult {
+  const r = applyActionRaw(gs, pid, a)
+  syncTeams(gs)
+  return r
+}
+
+function applyActionRaw(gs: GameState, pid: number, a: Action): ActionResult {
   const me = gs.players[pid]
   if (!me) return { error: 'Joueur inconnu' }
   try {
@@ -62,6 +70,22 @@ export function applyAction(gs: GameState, pid: number, a: Action): ActionResult
       case 'setMode':
         if (pid !== gs.hostId || gs.phase !== 'lobby') return { error: 'Seul l’hôte peut changer le mode' }
         gs.mode = a.mode
+        return {}
+      case 'gift': {
+        const mate = teammate(gs, me)
+        if (gs.phase !== 'shop' || gs.ready[pid] || !mate || !mate.alive) return { error: 'Pas de coéquipier à qui donner' }
+        if (me.giftUsed) return { error: 'Tu as déjà fait ton cadeau cette partie' }
+        const j = me.jokers.find((x) => x.uid === a.uid)
+        if (!j) return { error: 'Joker introuvable' }
+        if (!jokerRoom(mate, j)) return { error: `${mate.name} n’a plus de place pour un joker` }
+        me.jokers = me.jokers.filter((x) => x !== j)
+        mate.jokers.push(j)
+        me.giftUsed = true
+        return { msg: `🎁 ${getJoker(j.defId).name} donné à ${mate.name} !` }
+      }
+      case 'skipToEnd':
+        if (aliveHumans(gs).length || gs.phase === 'over') return { error: 'Impossible' }
+        finishWithBots(gs)
         return {}
       case 'start':
         if (pid !== gs.hostId) return { error: 'Seul l’hôte peut lancer la partie' }

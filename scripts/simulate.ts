@@ -1,5 +1,5 @@
 // Simule des parties complètes (l'humain est joué par l'IA) pour vérifier le moteur.
-import { autoPlayHuman, newLobby, seatHuman, unseatHuman } from '../src/engine/game'
+import { autoPlayHuman, spectateStep, newLobby, seatHuman, unseatHuman } from '../src/engine/game'
 import { applyAction } from '../src/engine/actions'
 import { evaluateHand } from '../src/engine/hands'
 import { makeCard } from '../src/engine/cards'
@@ -42,6 +42,8 @@ for (let g = 0; g < games; g++) {
   let guard = 0
   while (gs.phase !== 'over' && guard++ < 400) {
     for (const id of [0, friend]) if (gs.players[id].alive && !gs.ready[id]) autoPlayHuman(gs, id)
+    // humains éliminés : ils regardent (mode spectateur), un round à la fois
+    spectateStep(gs)
     // un ami qui part en plein milieu redevient un bot
     if (gs.round === 5 && g % 3 === 0 && !gs.players[friend].isBot) unseatHuman(gs, friend)
   }

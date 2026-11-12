@@ -34,6 +34,7 @@ export function playHand(p: Player, cs: CombatState, selectedIds: number[], rng:
 
   cs.score += res.total
   cs.handScores.push(res.total)
+  ;(cs.history ??= []).push({ cards: played.map((c) => ({ ...c })), type: res.type, total: res.total })
   cs.playedTypes.push(res.type)
   p.handPlays[res.type]++
   p.gold += res.money

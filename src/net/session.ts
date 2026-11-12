@@ -4,9 +4,12 @@
 // via PeerJS) : aucun serveur à héberger, le service gratuit de PeerJS ne sert qu'à se trouver.
 import Peer, { type DataConnection } from 'peerjs'
 import { applyAction, type Action, type ActionResult } from '../engine/actions'
-import { checkTimeout, newGame, personalDeadline, rematchState, type GameMode, newLobby, seatHuman, unseatHuman, type GameState } from '../engine/game'
+import { checkTimeout, hasSpectators, newGame, spectateStep, personalDeadline, rematchState, type GameMode, newLobby, seatHuman, unseatHuman, type GameState } from '../engine/game'
 
 export type Mode = 'solo' | 'host' | 'guest'
+
+/** Temps d'affichage d'une main pour les spectateurs. */
+export const SPECTATE_HAND_MS = 1600
 
 type Msg =
   | { t: 'hello'; name: string }
@@ -50,10 +53,23 @@ export class Session {
     return Math.max(0, d - (Date.now() - this.skew))
   }
 
+  private watchSince = 0
   /** L'hôte vérifie les minuteries : les joueurs en retard finissent automatiquement. */
   private startClock() {
     this.timer = window.setInterval(() => {
-      if (this.gs && checkTimeout(this.gs)) {
+      const gs = this.gs
+      if (!gs) return
+      let changed = gs.timers ? checkTimeout(gs) : false
+      // mode spectateur : on laisse le temps de regarder les mains, puis round suivant
+      if (gs.phase === 'combat' && hasSpectators(gs)) {
+        if (!this.watchSince) this.watchSince = Date.now()
+        const longest = Math.max(1, ...Object.values(gs.combats).map((c) => c?.history?.length ?? 0))
+        if (Date.now() - this.watchSince > SPECTATE_HAND_MS * longest + 4000) {
+          this.watchSince = 0
+          changed = spectateStep(gs) || changed
+        }
+      } else this.watchSince = 0
+      if (changed) {
         this.broadcast()
         this.changed()
       }
@@ -76,6 +92,7 @@ export class Session {
   static solo(name: string, mode: GameMode = 'classic'): Session {
     const s = new Session('solo')
     s.gs = newGame(name, undefined, mode)
+    s.startClock()
     return s
   }
 

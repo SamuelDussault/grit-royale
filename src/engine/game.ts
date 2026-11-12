@@ -14,6 +14,8 @@ import { newShop, type PackSession, type ShopState } from './shop'
 
 export const CONFIG = {
   startHp: 100,
+  /** Mode équipes : PV partagés par équipe de 2. */
+  teamHp: 180,
   startGold: 6,
   baseIncome: 5,
   interestPer: 5,
@@ -128,8 +130,10 @@ export interface GameState {
   ready: Record<number, boolean>
   lastReport?: RoundReport
   hostId: number
-  /** Mode de jeu : classique, ou tout le monde commence avec un légendaire. */
+  /** Mode de jeu : classique, légendaire (un légendaire au départ) ou équipes 2v2v2v2. */
   mode?: GameMode
+  /** Mode équipes : PV de chaque joueur à la dernière synchro. */
+  teamSync?: number[]
   /** Minuterie (parties en ligne) : heure limite de la phase, selon l'horloge de l'hôte. */
   timers?: boolean
   deadline?: number
@@ -188,7 +192,38 @@ export function newLobby(hostName: string, seed = Date.now() % 1e9): GameState {
   return { rng, seed, round: 0, phase: 'lobby', players, matches: [], combats: {}, opponents: {}, shops: {}, packs: {}, ready: {}, hostId: 0 }
 }
 
-export type GameMode = 'classic' | 'legendary'
+export type GameMode = 'classic' | 'legendary' | 'teams'
+
+export const TEAM_NAMES = ['Cœurs', 'Piques', 'Carreaux', 'Trèfles']
+
+export function teammate(gs: GameState, p: Player): Player | undefined {
+  if (p.team === undefined) return undefined
+  return gs.players.find((o) => o.id !== p.id && o.team === p.team)
+}
+
+/**
+ * Mode équipes : les coéquipiers partagent leurs PV. Chaque variation de PV d'un membre depuis
+ * la dernière synchro est appliquée à l'équipe entière (appel idempotent).
+ */
+export function syncTeams(gs: GameState) {
+  if (gs.mode !== 'teams') return
+  const last = (gs.teamSync ??= gs.players.map((p) => p.hp))
+  const teams = new Map<number, Player[]>()
+  for (const p of gs.players) if (p.team !== undefined) teams.set(p.team, [...(teams.get(p.team) ?? []), p])
+  for (const members of teams.values()) {
+    const base = last[members[0].id]
+    const delta = members.reduce((a, m) => a + (m.hp - last[m.id]), 0)
+    const hp = base + delta
+    for (const m of members) {
+      m.hp = hp
+      last[m.id] = hp
+    }
+  }
+}
+
+export function aliveTeams(gs: GameState): number {
+  return new Set(alivePlayers(gs).map((p) => p.team)).size
+}
 
 /** Revanche : un nouveau salon avec les mêmes humains (mêmes places), même mode. */
 export function rematchState(old: GameState): GameState {
@@ -222,6 +257,13 @@ export function newGame(playerName: string, seed?: number, mode: GameMode = 'cla
 
 export function launchGame(gs: GameState) {
   if (gs.phase !== 'lobby') return
+  if (gs.mode === 'teams') {
+    for (const p of gs.players) {
+      p.team = Math.floor(p.id / 2)
+      p.hp = p.maxHp = CONFIG.teamHp
+    }
+    gs.teamSync = gs.players.map((p) => p.hp)
+  }
   if (gs.mode === 'legendary') {
     // Mode Légendaire : chaque joueur reçoit un légendaire différent dès le départ
     const taken: string[] = []
@@ -382,12 +424,22 @@ export function computeDamage(round: number, winnerScore: number, loserScore: nu
 }
 
 function pairUp(gs: GameState): Match[] {
-  const alive = gs.rng.shuffle(alivePlayers(gs).map((p) => p.id))
+  let alive = gs.rng.shuffle(alivePlayers(gs).map((p) => p.id))
+  if (gs.mode === 'teams') {
+    // jamais contre son coéquipier
+    const ok = (ids: number[]) => {
+      for (let i = 0; i + 1 < ids.length; i += 2) if (gs.players[ids[i]].team === gs.players[ids[i + 1]].team) return false
+      return true
+    }
+    for (let k = 0; k < 40 && !ok(alive); k++) alive = gs.rng.shuffle(alive)
+  }
   const matches: Match[] = []
   for (let i = 0; i + 1 < alive.length; i += 2) matches.push({ a: alive[i], b: alive[i + 1] })
   if (alive.length % 2 === 1) {
     const odd = alive[alive.length - 1]
-    const others = alive.filter((x) => x !== odd)
+    let others = alive.filter((x) => x !== odd)
+    const foes = others.filter((x) => gs.players[x].team === undefined || gs.players[x].team !== gs.players[odd].team)
+    if (foes.length) others = foes
     matches.push({ a: odd, b: gs.rng.pick(others), ghostB: true })
   }
   return matches
@@ -497,10 +549,50 @@ export function startRound(gs: GameState) {
   maybeAdvance(gs)
 }
 
+/** Des humains éliminés regardent encore la partie (mode spectateur). */
+export function hasSpectators(gs: GameState): boolean {
+  return aliveHumans(gs).length === 0 && gs.players.some((p) => !p.isBot)
+}
+let spectateGo = false
+
+/** Mode spectateur : on laisse le temps de regarder les duels, puis on passe au round suivant. */
+export function spectateStep(gs: GameState): boolean {
+  if (gs.phase !== 'combat' || !hasSpectators(gs)) return false
+  spectateGo = true
+  try {
+    maybeAdvance(gs)
+  } finally {
+    spectateGo = false
+  }
+  return true
+}
+
+/** Termine la partie entre bots, d'un coup. */
+export function finishWithBots(gs: GameState) {
+  if (gs.phase === 'combat') {
+    resolveRound(gs)
+    if (isGameOver(gs)) {
+      gs.phase = 'over'
+      return
+    }
+  }
+  gs.carousel = undefined
+  simulateToEnd(gs)
+}
+
 /** Passe à l'étape suivante quand tous les humains en vie ont fini. */
 export function maybeAdvance(gs: GameState) {
+  advance(gs)
+  syncTeams(gs)
+}
+
+function advance(gs: GameState) {
+  if (gs.phase === 'combat' && hasSpectators(gs)) {
+    if (!spectateGo) return // les spectateurs regardent
+    spectateGo = false // un seul round à la fois
+  }
   if (gs.phase === 'shop' && waitingFor(gs).length === 0) {
-    if (aliveHumans(gs).length === 0 && alivePlayers(gs).length > 1) {
+    if (aliveHumans(gs).length === 0 && !isGameOver(gs) && !hasSpectators(gs)) {
       // plus d'humains en vie : on termine la partie rapidement entre bots
       simulateToEnd(gs)
       return
@@ -516,7 +608,7 @@ export function maybeAdvance(gs: GameState) {
 
 function simulateToEnd(gs: GameState) {
   let guard = 0
-  while (alivePlayers(gs).length > 1 && guard++ < 200) {
+  while (!isGameOver(gs) && guard++ < 200) {
     startRoundBotsOnly(gs)
   }
   gs.phase = 'over'
@@ -716,6 +808,7 @@ function resolveRound(gs: GameState) {
     }
   }
 
+  syncTeams(gs)
   // Cendres du Phénix : on renaît au lieu de mourir
   for (const p of alivePlayers(gs)) {
     if (p.hp > 0) continue
@@ -724,6 +817,11 @@ function resolveRound(gs: GameState) {
     ash.defId = 'phoenix'
     ash.state = {}
     p.hp = 20
+    const mate = teammate(gs, p)
+    if (mate) {
+      mate.hp = 20
+      if (gs.teamSync) gs.teamSync[p.id] = gs.teamSync[mate.id] = 20
+    }
     msg(p.id, 'Le Phénix renaît de ses cendres ! Tu reviens à 20 PV')
     for (const o of gs.players) if (o.id !== p.id) msg(o.id, `${p.name} renaît de ses cendres !`)
   }
@@ -731,7 +829,20 @@ function resolveRound(gs: GameState) {
   // éliminations
   const dead = alivePlayers(gs).filter((p) => p.hp <= 0)
   const eliminated: number[] = []
-  if (dead.length) {
+  if (dead.length && gs.mode === 'teams') {
+    // équipes : la place est celle de l'équipe
+    const deadTeams = [...new Set(dead.map((p) => p.team!))].sort(
+      (a, b) => Math.max(...dead.filter((p) => p.team === b).map((p) => p.hp)) - Math.max(...dead.filter((p) => p.team === a).map((p) => p.hp)),
+    )
+    for (const p of dead) p.alive = false
+    const teamsAfter = aliveTeams(gs)
+    deadTeams.forEach((t, i) => {
+      for (const p of dead.filter((x) => x.team === t)) {
+        p.placement = Math.max(1, teamsAfter + 1 + i)
+        eliminated.push(p.id)
+      }
+    })
+  } else if (dead.length) {
     const aliveAfter = alivePlayers(gs).length - dead.length
     dead.sort((a, b) => b.hp - a.hp)
     dead.forEach((p, i) => {
@@ -739,6 +850,8 @@ function resolveRound(gs: GameState) {
       p.placement = Math.max(1, aliveAfter + 1 + i)
       eliminated.push(p.id)
     })
+  }
+  if (dead.length) {
     for (const p of gs.players) for (const d of dead) msg(p.id, `${d.name} est éliminé·e (${d.placement}e place)`)
     for (const p of alivePlayers(gs))
       for (const j of p.jokers) {
@@ -748,16 +861,25 @@ function resolveRound(gs: GameState) {
       }
   }
   const left = alivePlayers(gs)
-  if (left.length === 1) left[0].placement = 1
-  if (left.length === 0) {
-    const best = [...dead].sort((a, b) => b.hp - a.hp)[0]
-    best.placement = 1
+  if (gs.mode === 'teams') {
+    if (aliveTeams(gs) === 1) for (const p of left) p.placement = 1
+    if (left.length === 0) {
+      const best = [...dead].sort((a, b) => b.hp - a.hp)[0]
+      for (const p of dead) if (p.team === best.team) p.placement = 1
+    }
+  } else {
+    if (left.length === 1) left[0].placement = 1
+    if (left.length === 0) {
+      const best = [...dead].sort((a, b) => b.hp - a.hp)[0]
+      best.placement = 1
+    }
   }
 
   gs.lastReport = { round: gs.round, matches: gs.matches, gold: goldAll, messages, eliminated, boss: bossInfo }
 }
 
 export function isGameOver(gs: GameState): boolean {
+  if (gs.mode === 'teams') return aliveTeams(gs) <= 1
   return alivePlayers(gs).length <= 1
 }
 
@@ -802,6 +924,7 @@ export function unseatHuman(gs: GameState, id: number) {
 /** Pour la simulation / les tests : joue le tour d'un humain avec l'IA. */
 export function autoPlayHuman(gs: GameState, id: number, advance = true) {
   const p = gs.players[id]
+  if (!p.alive) return
   p.bot = p.bot ?? { skill: 0.9, greed: 0.5 }
   if (gs.phase === 'combat' && !gs.ready[id]) {
     const cs = gs.combats[id]
@@ -818,6 +941,7 @@ export function autoPlayHuman(gs: GameState, id: number, advance = true) {
     return
   }
   if (advance) maybeAdvance(gs)
+  syncTeams(gs)
 }
 
 /** Temps écoulé : les humains en retard finissent automatiquement (combat joué par l'IA, boutique fermée). */

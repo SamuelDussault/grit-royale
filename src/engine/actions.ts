@@ -81,7 +81,7 @@ function applyActionRaw(gs: GameState, pid: number, a: Action): ActionResult {
         me.jokers = me.jokers.filter((x) => x !== j)
         mate.jokers.push(j)
         me.giftUsed = true
-        return { msg: `🎁 ${getJoker(j.defId).name} donné à ${mate.name} !` }
+        return { msg: `${getJoker(j.defId).name} donné à ${mate.name} !` }
       }
       case 'skipToEnd':
         if (aliveHumans(gs).length || gs.phase === 'over') return { error: 'Impossible' }

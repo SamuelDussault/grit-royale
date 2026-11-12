@@ -292,18 +292,15 @@ export default function App() {
                 <>
                   <div className="mode-pick">
                     <button className={`mode-tile ${gameMode === 'classic' ? 'on' : ''}`} onClick={() => setGameMode('classic')}>
-                      <span className="mode-icon">🃏</span>
-                      <span className="mode-name">Classique</span>
+                                            <span className="mode-name">Classique</span>
                       <span className="mode-desc">Tout le monde part de zéro</span>
                     </button>
                     <button className={`mode-tile legend ${gameMode === 'legendary' ? 'on' : ''}`} onClick={() => setGameMode('legendary')}>
-                      <span className="mode-icon">🌟</span>
-                      <span className="mode-name">Légendaire</span>
+                                            <span className="mode-name">Légendaire</span>
                       <span className="mode-desc">Chacun commence avec un joker légendaire</span>
                     </button>
                     <button className={`mode-tile team ${gameMode === 'teams' ? 'on' : ''}`} onClick={() => setGameMode('teams')}>
-                      <span className="mode-icon">🤝</span>
-                      <span className="mode-name">Équipes</span>
+                                            <span className="mode-name">Équipes</span>
                       <span className="mode-desc">2v2v2v2 · PV partagés · 1 cadeau</span>
                     </button>
                   </div>
@@ -317,25 +314,25 @@ export default function App() {
                   </div>
                   <div className="home-sub-btns">
                     <button className="btn orange" onClick={() => setModal({ kind: 'collection' })}>
-                      📖 COLLECTION
+                      COLLECTION
                     </button>
                     <button className="btn purple" onClick={() => setModal({ kind: 'profile' })}>
-                      📊 PROFIL
+                      PROFIL
                     </button>
                   </div>
                 </>
               )}
               <div className="how">
                 <div>
-                  <b>🛒</b>
+                  <b>1</b>
                   <span>Achète jokers, tarots et planètes</span>
                 </div>
                 <div>
-                  <b>⚔️</b>
+                  <b>2</b>
                   <span>Un duel par round : 4 mains, le plus gros score gagne</span>
                 </div>
                 <div>
-                  <b>👑</b>
+                  <b>3</b>
                   <span>Sois le dernier debout</span>
                 </div>
               </div>
@@ -491,7 +488,7 @@ export default function App() {
                         gs.phase === 'shop' &&
                         me.jokers.some((h) => h.defId === 'blackHole' && h.state.r !== gs.round) && (
                           <button className="btn red sell-btn" onClick={() => act({ type: 'devour', uid: j.uid }, (r) => !r.error && sound.total())}>
-                            🕳 Avaler
+                            Avaler
                           </button>
                         )}
                       {gs.mode === 'teams' && gs.phase === 'shop' && !me.giftUsed && teammate(gs, me)?.alive && (
@@ -499,7 +496,7 @@ export default function App() {
                           className="btn blue sell-btn"
                           onClick={() => act({ type: 'gift', uid: j.uid }, (r) => !r.error && sound.coin())}
                         >
-                          🎁 Donner
+                          Donner
                         </button>
                       )}
                       {j.defId === 'gluttony' && gs.phase === 'shop' && j.state.r !== gs.round && (
@@ -611,7 +608,7 @@ export default function App() {
             <Countdown session={session!} />
           </div>
           <div className="blind-body">
-            <div className="opp-avatar boss-avatar">☠</div>
+            <div className="opp-avatar boss-avatar">B</div>
             <div>
               <div className="opp-name">{gs.boss.name}</div>
               <div className="t-money">Récompense : {gs.boss.reward} $</div>
@@ -633,7 +630,7 @@ export default function App() {
               {opp.name[0]}
             </div>
             <div>
-              <div className="opp-name">{opp.name}{!opp.isBot && ' 👤'}</div>
+              <div className="opp-name">{opp.name}</div>
               <div className="hp">♥ {opp.hp} PV</div>
             </div>
             <div className="opp-score">
@@ -686,7 +683,7 @@ export default function App() {
           <div className="mini-btns">
             <SoundButtons />
             <button className="btn sm red" title="Menu / quitter la partie" onClick={() => setModal({ kind: 'quit' })}>
-              ☰
+              Menu
             </button>
           </div>
         </div>
@@ -855,7 +852,7 @@ export default function App() {
             </p>
             <div className="over-btns">
               <button className="btn blue big" onClick={() => setModal(null)}>
-                ▶ Continuer
+                Continuer
               </button>
               {session!.mode === 'solo' && (
                 <button
@@ -866,7 +863,7 @@ export default function App() {
                     session!.rematch()
                   }}
                 >
-                  🔁 Recommencer
+                  Recommencer
                 </button>
               )}
               <button
@@ -876,7 +873,7 @@ export default function App() {
                   leave()
                 }}
               >
-                🏠 Quitter au menu
+                Quitter au menu
               </button>
             </div>
           </div>
@@ -887,7 +884,7 @@ export default function App() {
           <div className="quit-box">
             <p>{session.error}</p>
             <button className="btn orange big" onClick={leave}>
-              🏠 Retour au menu
+              Retour au menu
             </button>
           </div>
         </Modal>
@@ -922,7 +919,7 @@ export default function App() {
                   </span>
                   <span>
                     {p.name}
-                    {!p.isBot && ' 👤'}
+                    
                   </span>
                   <span className="hp">♥ {p.hp}</span>
                   <span className="t-money">{p.gold} $</span>
@@ -974,7 +971,7 @@ function Lobby({ gs, meId, onScout }: { gs: GameState; meId: number; onScout: (i
           </span>
           <span className="lname">
             {p.name}
-            {!p.isBot && ' 👤'}
+            
             {teams && p.team === myTeam && p.id !== meId && <span className="mate-tag">coéquipier</span>}
           </span>
           <span className="lhp">
@@ -989,7 +986,7 @@ function Lobby({ gs, meId, onScout }: { gs: GameState; meId: number; onScout: (i
               `#${p.placement}`
             )}
           </span>
-          {p.alive && p.winStreak >= 2 && <span className="streak">🔥{p.winStreak}</span>}
+          {p.alive && p.winStreak >= 2 && <span className="streak" title="Série de victoires">x{p.winStreak}</span>}
         </div>
       ))}
     </div>
@@ -1035,7 +1032,7 @@ function SpectateArea({ gs, me, canSkip, onSkip, onLeave }: { gs: GameState; me:
           </span>
           <span className="spec-name">
             {p.name}
-            {!p.isBot && ' 👤'}
+            
             {ghost && <span className="ghost">fantôme</span>}
           </span>
           <span className="hp">♥ {Math.max(0, p.hp)}</span>
@@ -1073,21 +1070,21 @@ function SpectateArea({ gs, me, canSkip, onSkip, onLeave }: { gs: GameState; me:
     <div className="spectate panel-ui">
       <div className="spec-top">
         <div className="spec-title">
-          👁 Spectateur · Round {gs.round} <span className="muted small">(tu as fini {me.placement}e)</span>
+          Spectateur · Round {gs.round} <span className="muted small">(tu as fini {me.placement}e)</span>
         </div>
         <div className="spec-btns">
           {canSkip && (
             <button className="btn orange sm" onClick={onSkip}>
-              ⏩ Passer à la fin
+              Passer à la fin
             </button>
           )}
           <button className="btn red sm" onClick={onLeave}>
-            🏠 Quitter
+            Quitter
           </button>
         </div>
       </div>
       {gs.phase !== 'combat' ? (
-        <div className="spec-wait">{gs.phase === 'carousel' ? '🎠 Carrousel en cours…' : '🛒 Les joueurs magasinent…'}</div>
+        <div className="spec-wait">{gs.phase === 'carousel' ? 'Carrousel en cours…' : 'Les joueurs magasinent…'}</div>
       ) : (
         <>
           <div className="spec-tabs">
@@ -1101,8 +1098,8 @@ function SpectateArea({ gs, me, canSkip, onSkip, onLeave }: { gs: GameState; me:
           {duel && (
             <div className="spec-duel">
               {column(duel.a)}
-              <div className="spec-vs">{gs.boss ? `☠ ${fmt(gs.boss.target)}` : 'VS'}</div>
-              {duel.b !== undefined ? column(duel.b, duel.ghost) : <div className="spec-col spec-boss">☠ {gs.boss?.name}</div>}
+              <div className="spec-vs">{gs.boss ? fmt(gs.boss.target) : 'VS'}</div>
+              {duel.b !== undefined ? column(duel.b, duel.ghost) : <div className="spec-col spec-boss">{gs.boss?.name}</div>}
             </div>
           )}
         </>
@@ -1151,7 +1148,7 @@ function CombatArea(props: {
         )}
         {me.jokers.some((j) => j.defId === 'fateEye') && !cs.finished && !anim && (
           <button className="btn purple fate-btn" disabled={busy} onClick={props.onFate}>
-            👁 Œil du Destin
+            Œil du Destin
           </button>
         )}
         {rewindable && (
@@ -1231,7 +1228,7 @@ function FateModal({ cs, onClose, onApply }: { cs: CombatState; onClose: () => v
   const [order, setOrder] = useState(() => cs.drawPile.slice(-10).reverse())
   const [pick, setPick] = useState<number | null>(null)
   return (
-    <Modal title="👁 L’Œil du Destin — les prochaines cartes" onClose={onClose}>
+    <Modal title="L’Œil du Destin : les prochaines cartes" onClose={onClose}>
       <div className="muted small" style={{ marginBottom: 8 }}>
         La carte de gauche sera piochée en premier. Clique une carte, puis une autre pour les échanger.
       </div>
@@ -1295,7 +1292,7 @@ function ShopArea(props: {
           title={item.locked ? 'Déverrouiller' : 'Verrouiller : l’article reste dans ta boutique au prochain round (et pendant les relances)'}
           onClick={() => props.onLock(item)}
         >
-          {item.locked ? '🔒' : '🔓'}
+          <LockIcon open={!item.locked} />
         </button>
       )}
       {card}
@@ -1310,7 +1307,7 @@ function ShopArea(props: {
       )}
       {!item.sold && item.kind === 'joker' && hungryHole && (
         <button className="btn red sm buy" onClick={() => props.onDevour(item.key)}>
-          🕳 Avaler
+          Avaler
         </button>
       )}
     </div>
@@ -1392,11 +1389,11 @@ function ShopArea(props: {
     banner = (
       <div className={`banner team-banner t${me.team}`}>
         <div className="banner-title">
-          🤝 Équipe {TEAM_NAMES[me.team!]} {TEAM_SUITS[me.team!]}
+          Équipe {TEAM_NAMES[me.team!]} {TEAM_SUITS[me.team!]}
         </div>
         <div>
           Ton coéquipier : <b>{mate?.name}</b>. Vous partagez <b className="t-red">{me.hp} PV</b> — chaque défaite de l’un fait mal aux deux. Une fois par
-          partie, tu peux lui <b>🎁 donner</b> un de tes jokers (survole-le en boutique).
+          partie, tu peux lui <b>donner</b> un de tes jokers (survole-le en boutique).
         </div>
       </div>
     )
@@ -1408,7 +1405,7 @@ function ShopArea(props: {
     if (leg)
       banner = (
         <div className="banner legend-banner">
-          <div className="banner-title">🌟 Mode Légendaire</div>
+          <div className="banner-title">Mode Légendaire</div>
           <div>
             Tu commences avec <b className="t-money">{getJoker(leg.defId).name}</b> — et chaque adversaire a aussi le sien. Survole-le pour voir son effet !
           </div>
@@ -1452,7 +1449,7 @@ function ShopArea(props: {
       )}
       {(me.debt || me.jokers.some((j) => j.defId === 'usurer')) && (
         <div className="loan panel-ui">
-          <div className="income-title">🏦 L’Usurier</div>
+          <div className="income-title">L’Usurier</div>
           <div className="loan-row">
             <span>
               Dette : <b className={me.debt ? 't-mult' : ''}>{me.debt ?? 0} $</b> / 20 $ — chaque $ dû te coûte <b>1 PV</b> à la fin du round
@@ -1543,7 +1540,7 @@ function GameOver({ gs, meId, mode, onRematch, onMenu }: { gs: GameState; meId: 
             </span>
             <span>
               {gs.mode === 'teams' && <span className={`team-dot t${p.team}`}>{TEAM_SUITS[p.team!]}</span>} {p.name}
-              {!p.isBot && ' 👤'}
+              
             </span>
             <span className="muted small">{p.jokers.length} jokers</span>
           </div>
@@ -1552,17 +1549,17 @@ function GameOver({ gs, meId, mode, onRematch, onMenu }: { gs: GameState; meId: 
       <div className="over-btns">
         {mode === 'solo' && (
           <button className="btn blue big" onClick={onRematch}>
-            🔁 Rejouer
+            Rejouer
           </button>
         )}
         {mode === 'host' && (
           <button className="btn green big" onClick={onRematch}>
-            🔁 Revanche {humans > 1 ? `avec les mêmes ${humans} joueurs` : ''}
+            Revanche {humans > 1 ? `avec les mêmes ${humans} joueurs` : ''}
           </button>
         )}
         {mode === 'guest' && <div className="muted">En attente de l’hôte pour une revanche…</div>}
         <button className="btn orange big" onClick={onMenu}>
-          🏠 Menu principal
+          Menu principal
         </button>
       </div>
     </div>
@@ -1796,22 +1793,22 @@ function LobbyRoom({
       {isHost ? (
         <div className="mode-pick lobby-modes">
           <button className={`mode-tile ${gs.mode !== 'legendary' ? 'on' : ''}`} onClick={() => onMode('classic')}>
-            <span className="mode-name">🃏 Classique</span>
+            <span className="mode-name">Classique</span>
           </button>
           <button className={`mode-tile legend ${gs.mode === 'legendary' ? 'on' : ''}`} onClick={() => onMode('legendary')}>
-            <span className="mode-name">🌟 Légendaire</span>
+            <span className="mode-name">Légendaire</span>
           </button>
           <button className={`mode-tile team ${gs.mode === 'teams' ? 'on' : ''}`} onClick={() => onMode('teams')}>
-            <span className="mode-name">🤝 Équipes</span>
+            <span className="mode-name">Équipes</span>
           </button>
         </div>
       ) : (
         <div className={`mode-badge ${gs.mode === 'legendary' ? 'legend' : ''}`}>
           {gs.mode === 'legendary'
-            ? '🌟 Mode Légendaire : chacun commence avec un légendaire'
+            ? 'Mode Légendaire : chacun commence avec un légendaire'
             : gs.mode === 'teams'
-              ? '🤝 Mode Équipes : 2v2v2v2, PV partagés'
-              : '🃏 Mode Classique'}
+              ? 'Mode Équipes : 2v2v2v2, PV partagés'
+              : 'Mode Classique'}
         </div>
       )}
       <div className="panel-ui lobby-room">
@@ -1888,8 +1885,19 @@ function Countdown({ session }: { session: Session }) {
   }
   return (
     <span className={`countdown ${sec <= 10 ? 'urgent' : ''}`} title="Temps restant : ensuite, ton tour se termine automatiquement">
-      ⏱ {Math.floor(sec / 60)}:{String(sec % 60).padStart(2, '0')}
+      {Math.floor(sec / 60)}:{String(sec % 60).padStart(2, '0')}
     </span>
+  )
+}
+
+/** Petit cadenas en pixel art (ouvert / fermé). */
+function LockIcon({ open }: { open: boolean }) {
+  return (
+    <svg viewBox="0 0 10 12" width="14" height="16" shapeRendering="crispEdges" fill="currentColor">
+      {open ? <path d="M6 0h3v1h1v4H9V1H7v4H6V1z" /> : <path d="M3 0h4v1h1v4H7V1H3v4H2V1h1z" />}
+      <path d="M1 5h8v7H1z" />
+      <path d="M4 7h2v3H4z" fill="#2c3e43" />
+    </svg>
   )
 }
 
@@ -1899,7 +1907,7 @@ function SoundButtons() {
   return (
     <div className="sound-btns">
       <button className={`btn sm ${sound.settings.sfx ? 'blue' : 'off'}`} onClick={() => sound.toggle('sfx')} title="Effets sonores">
-        🔊
+        Son
       </button>
     </div>
   )
@@ -1914,7 +1922,7 @@ function IncomeBox({ me }: { me: Player }) {
   const nextStep = !leaky && interest < cap ? (Math.floor(g / 5) + 1) * 5 : null
   return (
     <div className="income panel-ui">
-      <div className="income-title">💰 Ton revenu au prochain round</div>
+      <div className="income-title">Ton revenu au prochain round</div>
       <div className="income-row">
         <span>Revenu de base</span>
         <span className="t-money">+5 $</span>
@@ -1949,7 +1957,7 @@ function CarouselArea({ gs, meId, onPick }: { gs: GameState; meId: number; onPic
   const myTurn = current === meId
   return (
     <div className="carousel panel-ui">
-      <div className={`carousel-title ${c.legendary ? 'legend' : ''}`}>{c.legendary ? '🌟 Carrousel LÉGENDAIRE ! 🌟' : '🎠 Carrousel de jokers'}</div>
+      <div className={`carousel-title ${c.legendary ? 'legend' : ''}`}>{c.legendary ? 'Carrousel LÉGENDAIRE !' : 'Carrousel de jokers'}</div>
       <div className="muted">Chacun choisit un joker gratuit, à tour de rôle. Le joueur qui a le moins de PV choisit en premier.</div>
       <div className={`carousel-turn ${myTurn ? 'mine' : ''}`}>
         {myTurn ? 'À toi de choisir !' : current !== undefined ? `${gs.players[current].name} choisit…` : '…'}

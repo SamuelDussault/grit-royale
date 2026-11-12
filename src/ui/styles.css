@@ -400,7 +400,7 @@ button, input { font-family: var(--font); }
 @keyframes tipIn { from { opacity: 0; } }
 
 /* verrou de la boutique */
-.lock-btn { position: absolute; top: -26px; right: -14px; z-index: 6; width: 28px; height: 26px; border-radius: 7px; border: 2px solid var(--line); background: var(--inner); font-size: 15px; cursor: pointer; padding: 0; opacity: 0.55; }
+.lock-btn { position: absolute; top: -26px; right: -14px; z-index: 6; width: 28px; height: 26px; border-radius: 7px; border: 2px solid var(--line); background: var(--inner); color: #fff; display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; opacity: 0.55; }
 .lock-btn:hover { opacity: 1; }
 .lock-btn.on { opacity: 1; background: #b8860b; }
 .shop-item.locked .gcard-face { outline: 3px solid #f2b632; outline-offset: 2px; border-radius: 7px; }
@@ -489,7 +489,7 @@ button, input { font-family: var(--font); }
 .home-panel { padding: 18px 22px; display: flex; flex-direction: column; gap: 12px; align-items: center; width: 540px; }
 .home-panel input { font-size: 26px; padding: 8px 14px; border-radius: 10px; border: 3px solid var(--line); background: var(--inner); color: #fff; width: 100%; text-align: center; }
 .mode-pick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }
-.mode-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px; border-radius: 12px; border: 3px solid var(--line); background: var(--inner); color: #fff; font-family: inherit; cursor: pointer; transition: transform 0.12s, border-color 0.12s; opacity: 0.7; }
+.mode-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 14px 10px; border-radius: 12px; border: 3px solid var(--line); background: var(--inner); color: #fff; font-family: inherit; cursor: pointer; transition: transform 0.12s, border-color 0.12s; opacity: 0.7; }
 .mode-tile:hover { transform: translateY(-2px); opacity: 1; }
 .mode-tile.on { border-color: #4cc9f0; opacity: 1; box-shadow: 0 0 0 2px rgba(76, 201, 240, 0.35), 0 4px 0 rgba(0, 0, 0, 0.35); }
 .mode-tile.legend.on { border-color: #ffd36a; box-shadow: 0 0 16px rgba(255, 196, 60, 0.6), 0 4px 0 rgba(0, 0, 0, 0.35); background: linear-gradient(160deg, #5a3a08, var(--inner) 70%); }
@@ -499,7 +499,7 @@ button, input { font-family: var(--font); }
 .coll-btn { width: 100%; }
 .how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin-top: 2px; }
 .how div { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; font-size: 16px; color: var(--muted); line-height: 1.05; }
-.how b { font-size: 24px; }
+.how b { font-size: 20px; width: 30px; height: 30px; border-radius: 50%; background: var(--blue); color: #fff; display: flex; align-items: center; justify-content: center; }
 .marquee { width: 100%; overflow: hidden; padding: 8px 0 10px; background: linear-gradient(180deg, transparent, rgba(10, 8, 20, 0.55)); --cw: 74px; mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
 .marquee-track { display: flex; gap: 14px; width: max-content; animation: marquee 60s linear infinite; }
 .marquee-card { pointer-events: none; }

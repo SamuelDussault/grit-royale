@@ -379,7 +379,7 @@ export function ScoutView({ player }: { player: Player }) {
       <div className="scout-stats">
         <span className="hp">♥ {Math.max(0, player.hp)} PV</span>
         <span className="t-money">{player.gold} $</span>
-        <span>{player.winStreak ? `🔥 ${player.winStreak} victoire(s) de suite` : `${player.loseStreak} défaite(s) de suite`}</span>
+        <span>{player.winStreak ? `${player.winStreak} victoire(s) de suite` : `${player.loseStreak} défaite(s) de suite`}</span>
       </div>
       <div className="tray scout-jokers">
         {player.jokers.length === 0 && <span className="muted">Aucun joker</span>}

@@ -3,6 +3,7 @@ import type { Card, CombatState, Player, ScoreEvent, ScoreResult } from '../engi
 import { alivePlayers, aliveTeams, hasSpectators, TEAM_NAMES, teammate, waitingFor, type GameMode, type GameState } from '../engine/game'
 import type { Action, ActionResult } from '../engine/actions'
 import { Session, SPECTATE_HAND_MS } from '../net/session'
+import { isTouch, uiScale } from './scale'
 import { loadProfile, recordGame, recordHand, resetProfile, trackLive } from './profile'
 import { sound } from './sound'
 import { evaluateHand, handBase, HANDS } from '../engine/hands'
@@ -131,8 +132,9 @@ export default function App() {
     if (!target) return
     const el = document.querySelector(`[data-target="${target}"]`)
     if (!el) return
+    const S = uiScale()
     const r = el.getBoundingClientRect()
-    const p: Pop = { id: popId++, x: r.left + r.width / 2, y: r.top + 10, text, kind }
+    const p: Pop = { id: popId++, x: (r.left + r.width / 2) / S, y: (r.top + 10) / S, text, kind }
     setPops((ps) => [...ps.slice(-14), p])
     setTimeout(() => setPops((ps) => ps.filter((x) => x.id !== p.id)), 750)
     setJuice((j) => ({ ...j, [target]: (j[target] ?? 0) + 1 }))
@@ -312,6 +314,11 @@ export default function App() {
                       EN LIGNE
                     </button>
                   </div>
+                  {isTouch() && document.fullscreenEnabled && !document.fullscreenElement && (
+                    <button className="btn blue sm fs-btn" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>
+                      Plein écran
+                    </button>
+                  )}
                   <div className="home-sub-btns">
                     <button className="btn orange" onClick={() => setModal({ kind: 'collection' })}>
                       COLLECTION
@@ -471,7 +478,16 @@ export default function App() {
                 tipBelow
                 selected={jokerSel === j.uid}
                 juice={juice[`j${j.uid}`]}
-                onClick={() => setJokerSel(jokerSel === j.uid ? null : j.uid)}
+                onClick={() => {
+                  // tactile : touche un joker, puis un autre pour les échanger de place
+                  const from = me.jokers.findIndex((x) => x.uid === jokerSel)
+                  if (isTouch() && jokerSel !== null && jokerSel !== j.uid && from >= 0 && !busy) {
+                    setJokerSel(null)
+                    act({ type: 'moveJoker', from, to: i })
+                    return
+                  }
+                  setJokerSel(jokerSel === j.uid ? null : j.uid)
+                }}
                 draggable={!busy}
                 onDragStart={() => (dragFrom.current = i)}
                 onDragOver={(e) => e.preventDefault()}
@@ -527,9 +543,9 @@ export default function App() {
       </div>
       <div className="tray-count">
         {me.jokers.filter((j) => j.edition !== 'negative').length}/{me.maxJokers}
-        <span className="muted"> · survole un joker : bouton </span>
+        <span className="muted"> · {isTouch() ? 'touche' : 'survole'} un joker : bouton </span>
         <span className="t-green">Vendre</span>
-        <span className="muted"> · glisse pour réordonner</span>
+        <span className="muted"> · {isTouch() ? 'puis touche-en un autre pour les échanger' : 'glisse pour réordonner'}</span>
       </div>
     </div>
   )

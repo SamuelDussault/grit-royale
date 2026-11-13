@@ -1,6 +1,7 @@
 // Composants visuels : cartes avec effet 3D, info-bulles, plateaux.
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { uiScale } from './scale'
 import type { Card, ConsumableKind, Edition, JokerInst, Player } from '../engine/types'
 import { cardChips, EDITION_DESC, EDITION_NAME, ENH_DESC, ENH_NAME, rankName, SEAL_DESC, SEAL_NAME, SUIT_NAME } from '../engine/cards'
 import { getJoker, RARITY_NAME, sellValue, type Rarity } from '../engine/jokers'
@@ -174,11 +175,16 @@ export function GameCard({
   const showTip = () => {
     const el = ref.current
     if (!el || !tip) return
-    const r = el.getBoundingClientRect()
+    // coordonnées dans la surface virtuelle (mise à l'échelle sur téléphone)
+    const S = uiScale()
+    const b = el.getBoundingClientRect()
+    const r = { left: b.left / S, top: b.top / S, bottom: b.bottom / S, width: b.width / S }
+    const vw = window.innerWidth / S
+    const vh = window.innerHeight / S
     const W = 262
     // toujours entièrement visible : on borne la bulle aux bords de l'écran
-    const x = Math.max(8, Math.min(window.innerWidth - W - 8, r.left + r.width / 2 - W / 2))
-    const below = tipBelow ? r.bottom + 230 < window.innerHeight || r.top < 230 : r.top < 230
+    const x = Math.max(8, Math.min(vw - W - 8, r.left + r.width / 2 - W / 2))
+    const below = tipBelow ? r.bottom + 230 < vh || r.top < 230 : r.top < 230
     setTipAt({ x, y: below ? r.bottom + 10 : r.top - 10, below })
   }
   const move = (e: React.MouseEvent) => {
@@ -196,6 +202,13 @@ export function GameCard({
     ref.current?.style.setProperty('--rx', '0deg')
     setTipAt(null)
   }
+  // tactile : la bulle s'ouvre au toucher et se ferme au toucher suivant (n'importe où)
+  useEffect(() => {
+    if (!tipAt) return
+    const close = () => setTipAt(null)
+    document.addEventListener('touchstart', close, { once: true, capture: true })
+    return () => document.removeEventListener('touchstart', close, { capture: true })
+  }, [tipAt])
   return (
     <div
       className={`gcard ${selected ? 'selected' : ''} ${onClick ? 'clickable' : ''} ${className}`}
@@ -206,7 +219,15 @@ export function GameCard({
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
-      <div ref={ref} className="gcard-inner" onMouseEnter={showTip} onMouseMove={move} onMouseLeave={leave} onClick={onClick}>
+      <div
+        ref={ref}
+        className="gcard-inner"
+        onMouseEnter={showTip}
+        onMouseMove={move}
+        onMouseLeave={leave}
+        onTouchEnd={() => setTimeout(showTip, 0)}
+        onClick={onClick}
+      >
         <div key={juice} className={`gcard-face ${juice ? 'juice' : ''} ${edition ? 'ed-' + edition : ''}`}>
           {children}
           {edition && edition !== 'negative' && <div className="shine" />}
@@ -223,7 +244,7 @@ export function GameCard({
           <div className={`tip-float ${tipAt.below ? 'below' : 'above'}`} style={{ left: tipAt.x, top: tipAt.y }}>
             {tip}
           </div>,
-          document.body,
+          document.getElementById('scale-root') ?? document.body,
         )}
     </div>
   )

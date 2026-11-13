@@ -25,7 +25,10 @@
   -webkit-font-smoothing: none;
 }
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; height: 100%; overflow: hidden; }
+html, body, #root, #scale-root { margin: 0; height: 100%; overflow: hidden; }
+html { touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+#scale-root { position: relative; }
+#scale-root.scaled { position: fixed; top: 0; left: 0; }
 body { user-select: none; }
 button, input { font-family: var(--font); }
 .muted { color: var(--muted); }
@@ -41,7 +44,7 @@ button, input { font-family: var(--font); }
 .hp { color: #ff6f7d; }
 
 /* ---------- fond ---------- */
-.bg-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; image-rendering: pixelated; z-index: -2; background: #1a1420; }
+.bg-canvas { position: fixed; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; z-index: -2; background: #1a1420; }
 .crt {
   position: fixed; inset: 0; pointer-events: none; z-index: 100;
   background:
@@ -88,7 +91,7 @@ button, input { font-family: var(--font); }
 .rules p { margin: 3px 0; }
 
 /* ---------- disposition du jeu ---------- */
-.game { display: grid; grid-template-columns: 330px 1fr; gap: 14px; height: 100vh; padding: 12px; }
+.game { display: grid; grid-template-columns: 330px 1fr; gap: 14px; height: 100%; padding: 12px; }
 .sidebar { display: flex; flex-direction: column; gap: 8px; padding: 10px; overflow: hidden; }
 .stage { display: flex; flex-direction: column; min-width: 0; min-height: 0; gap: 8px; }
 
@@ -574,3 +577,21 @@ button, input { font-family: var(--font); }
 
 .lobby.box .lobby-row:has(.team-dot) { grid-template-columns: 20px 26px minmax(0, 1fr) 90px auto; }
 .lname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- Téléphones ---------- */
+/* surface réduite : la barre de gauche et la zone de jeu défilent si besoin */
+#scale-root.compact .stage { overflow-y: auto; overflow-x: hidden; scrollbar-width: none; }
+#scale-root.compact .stage::-webkit-scrollbar { display: none; }
+#scale-root.compact .sidebar > * { flex-shrink: 0; }
+#scale-root.compact .sidebar > .lobby { flex-shrink: 1; }
+/* tactile : boutons des cartes visibles quand la carte est sélectionnée */
+#scale-root.touch .card-overlay .btn { padding: 8px 12px; }
+/* écran tenu à la verticale : on demande de tourner */
+.rotate-hint { display: none; }
+@media (orientation: portrait) and (max-width: 900px) {
+  .rotate-hint { position: fixed; inset: 0; z-index: 2000; background: #1a1420; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-size: 30px; color: #fff; text-align: center; padding: 20px; }
+  #scale-root { visibility: hidden; }
+}
+.rotate-phone { width: 60px; height: 100px; border: 6px solid #fff; border-radius: 12px; position: relative; animation: rotPhone 2s ease-in-out infinite; box-shadow: 0 6px 0 #b8352f; }
+.rotate-phone::after { content: ''; position: absolute; bottom: 6px; left: 50%; width: 12px; height: 4px; margin-left: -6px; background: #fff; border-radius: 2px; }
+@keyframes rotPhone { 0%, 25% { transform: rotate(0deg); } 55%, 100% { transform: rotate(-90deg); } }

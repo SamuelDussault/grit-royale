@@ -12,3 +12,15 @@ createRoot(document.getElementById('root')!).render(
     </ScaleRoot>
   </StrictMode>,
 )
+
+// installation sur l'écran d'accueil (PWA)
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}))
+}
+
+// bouton « Installer » : Chrome propose l'installation, on la garde pour l'accueil
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault()
+  ;(window as unknown as { installPrompt?: Event }).installPrompt = e
+  window.dispatchEvent(new Event('grit-installable'))
+})

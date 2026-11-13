@@ -87,6 +87,12 @@ export default function App() {
   const [sortBy, setSortBy] = useState<'rank' | 'suit'>('rank')
   const [name, setName] = useState('')
   const [gameMode, setGameMode] = useState<GameMode>('classic')
+  const [installable, setInstallable] = useState(() => !!(window as unknown as { installPrompt?: Event }).installPrompt)
+  useEffect(() => {
+    const on = () => setInstallable(true)
+    window.addEventListener('grit-installable', on)
+    return () => window.removeEventListener('grit-installable', on)
+  }, [])
   const [anim, setAnim] = useState<Anim | null>(null)
   const [pops, setPops] = useState<Pop[]>([])
   const [juice, setJuice] = useState<Record<string, number>>({})
@@ -314,7 +320,20 @@ export default function App() {
                       EN LIGNE
                     </button>
                   </div>
-                  {isTouch() && document.fullscreenEnabled && !document.fullscreenElement && (
+                  {installable && (
+                    <button
+                      className="btn green sm fs-btn"
+                      onClick={() => {
+                        const w = window as unknown as { installPrompt?: { prompt: () => void } }
+                        w.installPrompt?.prompt()
+                        w.installPrompt = undefined
+                        setInstallable(false)
+                      }}
+                    >
+                      Installer le jeu
+                    </button>
+                  )}
+                  {!installable && isTouch() && document.fullscreenEnabled && !document.fullscreenElement && !matchMedia('(display-mode: fullscreen)').matches && (
                     <button className="btn blue sm fs-btn" onClick={() => document.documentElement.requestFullscreen?.().catch(() => {})}>
                       Plein écran
                     </button>
